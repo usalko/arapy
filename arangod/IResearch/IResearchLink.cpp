@@ -1810,7 +1810,10 @@ Result IResearchLink::properties(velocypack::Builder& builder, bool forPersisten
 Result IResearchLink::properties(IResearchViewMeta const& meta) {
   // '_dataStore' can be asynchronously modified
   auto lock = _asyncSelf->lock();
+  return propertiesUnsafe(meta);
+}
 
+Result IResearchLink::propertiesUnsafe(IResearchViewMeta const& meta) {
   if (!_asyncSelf.get()) {
     // the current link is no longer valid (checked after ReadLock acquisition)
     return {TRI_ERROR_ARANGO_INDEX_HANDLE_BAD,
