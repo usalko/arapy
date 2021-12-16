@@ -108,6 +108,7 @@ class LogLeader : public std::enable_shared_from_this<LogLeader>, public ILogLea
 
 
   auto insert(LogPayload payload, bool waitForSync = false) -> LogIndex override;
+  auto insertWithDeferredReplication(LogPayload payload, bool waitForSync = false) -> std::pair<LogIndex, DeferredAction> override;
 
   // As opposed to the above insert methods, this one does not trigger the async
   // replication automatically, i.e. does not call triggerAsyncReplication after

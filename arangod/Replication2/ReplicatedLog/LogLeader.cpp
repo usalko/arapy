@@ -443,6 +443,18 @@ auto replicated_log::LogLeader::getStatus() const -> LogStatus {
   });
 }
 
+auto replicated_log::LogLeader::insertWithDeferredReplication(
+    LogPayload payload, bool waitForSync)
+    -> std::pair<LogIndex, DeferredAction> {
+  auto index =
+      insert(std::move(payload), waitForSync, doNotTriggerAsyncReplication);
+
+  return std::make_pair(
+      index, DeferredAction{[self = this->shared_from_this()]() noexcept {
+        self->triggerAsyncReplication();
+      }});
+}
+
 auto replicated_log::LogLeader::insert(LogPayload payload, bool waitForSync) -> LogIndex {
   auto index = insert(std::move(payload), waitForSync, doNotTriggerAsyncReplication);
   triggerAsyncReplication();
@@ -500,7 +512,7 @@ auto replicated_log::LogLeader::getParticipantId() const noexcept -> Participant
 }
 
 auto replicated_log::LogLeader::triggerAsyncReplication() -> void {
-  auto preparedRequests = _guardedLeaderData.doUnderLock([](auto& leaderData) {
+  auto preparedRequests = _guardedLeaderData.doUnderLock([](GuardedLeaderData& leaderData) {
     if (leaderData._didResign) {
       THROW_ARANGO_EXCEPTION(TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED);
     }

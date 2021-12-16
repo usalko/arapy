@@ -98,6 +98,7 @@ struct ILogFollower : ILogParticipant, AbstractFollower {
  */
 struct ILogLeader : ILogParticipant {
   virtual auto insert(LogPayload payload, bool waitForSync) -> LogIndex = 0;
+  virtual auto insertWithDeferredReplication(LogPayload payload, bool waitForSync) -> std::pair<LogIndex, DeferredAction> = 0;
 
   struct DoNotTriggerAsyncReplication {};
   constexpr static auto doNotTriggerAsyncReplication = DoNotTriggerAsyncReplication{};
