@@ -342,13 +342,24 @@ struct LogContext::EntryPtr {
   Entry* _entry;
 
  public:
-  constexpr EntryPtr() : _entry(nullptr) {}
-  explicit EntryPtr(Entry* e) noexcept : _entry(e) {}
-  EntryPtr(EntryPtr&& entry) : _entry{std::move(entry._entry)} {}
-  EntryPtr(EntryPtr const&) = delete;
-  EntryPtr& operator=(EntryPtr&& entry) {_entry = std::move(entry._entry); return *this;}
-  EntryPtr& operator=(EntryPtr const&) = delete;
+  constexpr EntryPtr() 
+      : _entry(nullptr) {}
+  explicit EntryPtr(Entry* e) noexcept 
+      : _entry(e) {}
 
+  EntryPtr(EntryPtr&& other) noexcept
+      : _entry(other._entry) {
+    other._entry = nullptr;
+  }
+  EntryPtr(EntryPtr const&) = delete;
+  EntryPtr& operator=(EntryPtr&& other) noexcept {
+    if (this != &other) {
+      _entry = other._entry;
+      other._entry = nullptr;
+    }
+    return *this;
+  }
+  EntryPtr& operator=(EntryPtr const&) = delete;
 };
 
 template <class Vals>
