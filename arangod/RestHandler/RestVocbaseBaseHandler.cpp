@@ -60,6 +60,8 @@ using namespace arangodb::basics;
 using namespace arangodb::rest;
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief agency public path
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,8 +224,20 @@ RestVocbaseBaseHandler::RestVocbaseBaseHandler(application_features::Application
                                                GeneralResponse* response)
     : RestBaseHandler(server, request, response),
       _context(*static_cast<VocbaseContext*>(request->requestContext())),
-      _vocbase(_context.vocbase()) {
+      _vocbase(_context.vocbase()),
+      _scopeValues(LogContext::makeValue().with<DatabaseName>(_vocbase.name()).share())
+{
   TRI_ASSERT(request->requestContext());
+}
+
+void RestVocbaseBaseHandler::prepareExecute(bool isContinue) {
+ // RestHandler::prepareExecute(isContinue);
+ // _logContextEntry = LogContext::Current::pushValues(_scopeValues);
+}
+
+void RestVocbaseBaseHandler::shutdownExecute(bool isFinalized) noexcept {
+ // LogContext::Current::popEntry(_logContextEntry);
+ // RestHandler::shutdownExecute(isFinalized);
 }
 
 RestVocbaseBaseHandler::~RestVocbaseBaseHandler() = default;

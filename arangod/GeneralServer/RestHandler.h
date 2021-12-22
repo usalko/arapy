@@ -31,6 +31,7 @@
 #include "Statistics/RequestStatistics.h"
 
 #include <atomic>
+#include <memory>
 #include <string_view>
 #include <thread>
 
@@ -119,10 +120,11 @@ class RestHandler : public std::enable_shared_from_this<RestHandler> {
 
   RequestLane determineRequestLane(); 
 
-  virtual void prepareExecute(bool isContinue) {}
+  virtual void prepareExecute(bool isContinue);
+  // virtual void executeWrapper() = { Scope.... execute()}; ScopeValue newValues(..............); execute(); }
   virtual RestStatus execute() = 0;
   virtual RestStatus continueExecute() { return RestStatus::DONE; }
-  virtual void shutdownExecute(bool isFinalized) noexcept {}
+  virtual void shutdownExecute(bool isFinalized) noexcept;
 
   // you might need to implment this in your handler
   // if it will be executed in an async job
@@ -229,6 +231,10 @@ class RestHandler : public std::enable_shared_from_this<RestHandler> {
   bool _trackedAsOngoingLowPrio;
 
   RequestLane _lane;
+
+  std::shared_ptr<LogContext::Values> _logContextScopeValues;
+  LogContext::EntryPtr _logContextEntry;
+
 
  protected:
   std::atomic<bool> _canceled;

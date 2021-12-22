@@ -310,6 +310,7 @@ struct LogContext::Entry {
 };
 
 struct LogContext::EntryPtr {
+  friend class LogContext;
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
   ~EntryPtr() {
     auto printValues = [](Entry* e) -> std::string {
@@ -317,9 +318,12 @@ struct LogContext::EntryPtr {
         return {};
       }
       std::string out;
-      LogContext::OverloadVisitor visitor([&out](std::string_view const& key, auto&& value) {
+      LogContext::OverloadVisitor visitor([&out](std::string_view const& key,
+                                                 auto&& value) {
         out.append(key).append(": ", 2);
-        if constexpr (std::is_same_v<std::string_view, std::remove_cv_t<std::remove_reference_t<decltype(value)>>>) {
+        if constexpr (std::is_same_v<std::string_view,
+                                     std::remove_cv_t<std::remove_reference_t<
+                                         decltype(value)>>>) {
           out.append(value);
         } else {
           out.append(std::to_string(value));
@@ -329,13 +333,22 @@ struct LogContext::EntryPtr {
       e->visit(visitor);
       return out;
     };
-    TRI_ASSERT(_entry == nullptr) << "entry with the following values has not been removed: " << printValues(_entry);
+    TRI_ASSERT(_entry == nullptr)
+        << "entry with the following values has not been removed: "
+        << printValues(_entry);
   }
 #endif
  private:
-   friend class LogContext;
-   EntryPtr(Entry* e) : _entry(e) {}
-   Entry* _entry;
+  Entry* _entry;
+
+ public:
+  constexpr EntryPtr() : _entry(nullptr) {}
+  explicit EntryPtr(Entry* e) noexcept : _entry(e) {}
+  EntryPtr(EntryPtr&& entry) : _entry{std::move(entry._entry)} {}
+  EntryPtr(EntryPtr const&) = delete;
+  EntryPtr& operator=(EntryPtr&& entry) {_entry = std::move(entry._entry); return *this;}
+  EntryPtr& operator=(EntryPtr const&) = delete;
+
 };
 
 template <class Vals>

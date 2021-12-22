@@ -53,6 +53,10 @@ using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
 
+constexpr char UrlName[] = "url";
+constexpr char UserName[] = "username";
+
+
 RestHandler::RestHandler(application_features::ApplicationServer& server,
                          GeneralRequest* request, GeneralResponse* response)
     :
@@ -64,9 +68,16 @@ RestHandler::RestHandler(application_features::ApplicationServer& server,
       _state(HandlerState::PREPARE),
       _trackedAsOngoingLowPrio(false),
       _lane(RequestLane::UNDEFINED),
-      _canceled(false) {}
+      _logContextScopeValues(LogContext::makeValue().with<UrlName>(_request->fullUrl()).with<UserName>(_request->user()).share()),
+      _canceled(false) {
+  LOG_DEVEL << __func__ << " " << this;
+
+}
+
+
 
 RestHandler::~RestHandler() {
+  LOG_DEVEL << __func__ << " " << this;
   if (_trackedAsOngoingLowPrio) {
     // someone forgot to call trackTaskEnd 🤔
     TRI_ASSERT(PriorityRequestLane(determineRequestLane()) == RequestPriority::LOW);
@@ -454,6 +465,16 @@ void RestHandler::prepareEngine() {
   _state = HandlerState::FAILED;
 }
 
+void RestHandler::prepareExecute(bool isContinue) {
+  LOG_DEVEL << __func__ << " " << this;
+  _logContextEntry = LogContext::Current::pushValues(_logContextScopeValues);
+}
+
+void RestHandler::shutdownExecute(bool isFinalized) noexcept {
+  LOG_DEVEL << __func__ << " " << this;
+  LogContext::Current::popEntry(_logContextEntry);
+}
+
 /// Execute the rest handler state machine. Retry the wakeup,
 /// returns true if _state == PAUSED, false otherwise
 bool RestHandler::wakeupHandler() {
@@ -468,6 +489,7 @@ bool RestHandler::wakeupHandler() {
 void RestHandler::executeEngine(bool isContinue) {
   DTRACE_PROBE1(arangod, RestHandlerExecuteEngine, this);
   ExecContext* exec = static_cast<ExecContext*>(_request->requestContext());
+
   ExecContextScope scope(exec);
 
   try {
