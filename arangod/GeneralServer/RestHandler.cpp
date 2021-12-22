@@ -69,15 +69,11 @@ RestHandler::RestHandler(application_features::ApplicationServer& server,
       _trackedAsOngoingLowPrio(false),
       _lane(RequestLane::UNDEFINED),
       _logContextScopeValues(LogContext::makeValue().with<UrlName>(_request->fullUrl()).with<UserName>(_request->user()).share()),
-      _canceled(false) {
-  LOG_DEVEL << __func__ << " " << this;
-
-}
+      _canceled(false) {}
 
 
 
 RestHandler::~RestHandler() {
-  LOG_DEVEL << __func__ << " " << this;
   if (_trackedAsOngoingLowPrio) {
     // someone forgot to call trackTaskEnd 🤔
     TRI_ASSERT(PriorityRequestLane(determineRequestLane()) == RequestPriority::LOW);
@@ -466,12 +462,10 @@ void RestHandler::prepareEngine() {
 }
 
 void RestHandler::prepareExecute(bool isContinue) {
-  LOG_DEVEL << __func__ << " " << this;
   _logContextEntry = LogContext::Current::pushValues(_logContextScopeValues);
 }
 
 void RestHandler::shutdownExecute(bool isFinalized) noexcept {
-  LOG_DEVEL << __func__ << " " << this;
   LogContext::Current::popEntry(_logContextEntry);
 }
 
