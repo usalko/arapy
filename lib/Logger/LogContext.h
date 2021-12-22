@@ -76,6 +76,7 @@ class LogContext {
   struct OverloadVisitor;
 
   struct Entry;
+  struct EntryPtr;
 
   struct Values;
 
@@ -132,6 +133,25 @@ class LogContext {
 
   /// @brief sets the given context as the current LogContext.
   static void setCurrent(LogContext ctx) noexcept;
+
+  struct Current {
+    /// @brief adds the provided values to the LogContext. The returned entry must later
+    /// be removed from the LogContext using `popEntry`.
+    /// You should only revert to this function if you cannot use `ScopedValue`.
+    static EntryPtr pushValues(std::shared_ptr<Values>);
+
+    template <class Vals, const char... Keys[]>
+    static EntryPtr pushValues(ValueBuilder<Vals, Keys...>&&);
+  
+    /// @brief removes the previously added entry from the LogContext.
+    /// Note: it is important that entries are popped in the inverse order in which they
+    /// were added.
+    static void popEntry(EntryPtr&) noexcept;
+
+   private:
+    template <class V>
+    static EntryPtr pushImpl(V&& v);
+  };
 
  private:
   struct ThreadControlBlock;
@@ -287,6 +307,35 @@ struct LogContext::Entry {
   friend class LogContext;
   std::atomic<std::size_t> _refCount{0};
   Entry* _prev{nullptr};
+};
+
+struct LogContext::EntryPtr {
+#ifdef ARANGODB_ENABLE_MAINTAINER_MODE
+  ~EntryPtr() {
+    auto printValues = [](Entry* e) -> std::string {
+      if (e == nullptr) {
+        return {};
+      }
+      std::string out;
+      LogContext::OverloadVisitor visitor([&out](std::string_view const& key, auto&& value) {
+        out.append(key).append(": ", 2);
+        if constexpr (std::is_same_v<std::string_view, std::remove_cv_t<std::remove_reference_t<decltype(value)>>>) {
+          out.append(value);
+        } else {
+          out.append(std::to_string(value));
+        }
+        out.append("; ", 2);
+      });
+      e->visit(visitor);
+      return out;
+    };
+    TRI_ASSERT(_entry == nullptr) << "entry with the following values has not been removed: " << printValues(_entry);
+  }
+#endif
+ private:
+   friend class LogContext;
+   EntryPtr(Entry* e) : _entry(e) {}
+   Entry* _entry;
 };
 
 template <class Vals>
@@ -517,6 +566,32 @@ inline LogContext::ValueBuilder<> LogContext::makeValue() noexcept {
 
 inline LogContext& LogContext::current() noexcept {
   return _threadControlBlock._logContext;
+}
+
+inline LogContext::EntryPtr LogContext::Current::pushValues(std::shared_ptr<Values> values) {
+  return pushImpl(std::move(values));
+}
+
+template <class Vals, const char... Keys[]>
+inline LogContext::EntryPtr LogContext::Current::pushValues(ValueBuilder<Vals, Keys...>&& v) {
+  using V = ValuesImpl<Vals, Keys...>;
+  return pushImpl(V(std::move(v._vals)));
+}
+
+template <class V>
+inline LogContext::EntryPtr LogContext::Current::pushImpl(V&& v) {
+  auto& local = LogContext::controlBlock();
+  auto e = local._entryCache.makeEntry<EntryImpl<V>>(std::forward<V>(v));
+  EntryPtr result(e.get());
+  local._logContext.pushEntry(std::move(e));
+  return result;
+}
+
+inline void LogContext::Current::popEntry(EntryPtr& entry) noexcept {
+  auto& local = LogContext::controlBlock();
+  TRI_ASSERT(entry._entry == local._logContext._tail);
+  local._logContext.popTail(local._entryCache);
+  entry._entry = nullptr;
 }
 
 inline LogContext::Entry* LogContext::pushEntry(std::unique_ptr<Entry> entry) noexcept {
