@@ -40,25 +40,30 @@ using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
 
+
 RestDatabaseHandler::RestDatabaseHandler(application_features::ApplicationServer& server,
                                          GeneralRequest* request, GeneralResponse* response)
     : RestVocbaseBaseHandler(server, request, response) {}
 
-RestStatus RestDatabaseHandler::execute() {
-  // extract the request type
-  rest::RequestType const type = _request->requestType();
-  if (type == rest::RequestType::GET) {
-    return getDatabases();
-  } else if (type == rest::RequestType::POST) {
-    return createDatabase();
-  } else if (type == rest::RequestType::DELETE_REQ) {
-    return deleteDatabase();
-  } else {
-    generateError(rest::ResponseCode::METHOD_NOT_ALLOWED, TRI_ERROR_HTTP_METHOD_NOT_ALLOWED);
 
-    return RestStatus::DONE;
+  RestStatus RestDatabaseHandler::execute() {
+
+    // extract the request type
+    rest::RequestType const type = _request->requestType();
+    if (type == rest::RequestType::GET) {
+      return getDatabases();
+    } else if (type == rest::RequestType::POST) {
+      return createDatabase();
+    } else if (type == rest::RequestType::DELETE_REQ) {
+      return deleteDatabase();
+    } else {
+      generateError(rest::ResponseCode::METHOD_NOT_ALLOWED,
+                    TRI_ERROR_HTTP_METHOD_NOT_ALLOWED);
+
+      return RestStatus::DONE;
+    }
   }
-}
+
 
 // //////////////////////////////////////////////////////////////////////////////
 // / @brief get database infos

@@ -84,8 +84,7 @@ void RestDocumentHandler::shutdownExecute(bool isFinalized) noexcept {
     _activeTrx.reset();
 
     try {
-      GeneralRequest const* request = _request.get();
-      auto const type = request->requestType();
+      auto const type = _request->requestType();
       auto const result = _response->responseCode();
 
       switch (type) {
@@ -97,7 +96,7 @@ void RestDocumentHandler::shutdownExecute(bool isFinalized) noexcept {
         case rest::RequestType::PATCH:
           break;
         default:
-          events::IllegalDocumentOperation(*request, result);
+          events::IllegalDocumentOperation(*_request, result);
           break;
       }
     } catch (...) {

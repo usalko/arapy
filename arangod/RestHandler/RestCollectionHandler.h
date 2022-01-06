@@ -40,7 +40,7 @@ class RestCollectionHandler : public arangodb::RestVocbaseBaseHandler {
   char const* name() const override final { return "RestCollectionHandler"; }
   RequestLane lane() const override final { return RequestLane::CLIENT_SLOW; }
   RestStatus execute() override final;
-  
+
   void shutdownExecute(bool isFinalized) noexcept override final;
 
  protected:
@@ -86,6 +86,7 @@ class RestCollectionHandler : public arangodb::RestVocbaseBaseHandler {
   VPackBuilder _builder;
   std::unique_ptr<transaction::Methods> _activeTrx;
   std::unique_ptr<methods::Collections::Context> _ctxt;
+
 };
 
 }  // namespace arangodb

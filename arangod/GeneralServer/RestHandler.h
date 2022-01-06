@@ -234,6 +234,8 @@ class RestHandler : public std::enable_shared_from_this<RestHandler> {
 
   std::shared_ptr<LogContext::Values> _logContextScopeValues;
   LogContext::EntryPtr _logContextEntry;
+  static constexpr char UrlName[] = "url";
+  static constexpr char UserName[] = "username";
 
 
  protected:

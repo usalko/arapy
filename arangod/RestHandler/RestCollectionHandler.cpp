@@ -82,6 +82,7 @@ void RestCollectionHandler::shutdownExecute(bool isFinalized) noexcept {
     _activeTrx.reset();
     _ctxt.reset();
   }
+  RestVocbaseBaseHandler::shutdownExecute(isFinalized);
 }
 
 RestStatus RestCollectionHandler::handleCommandGet() {

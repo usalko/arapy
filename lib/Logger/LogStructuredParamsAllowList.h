@@ -18,37 +18,27 @@
 ///
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
-/// @author Achim Brandt
+/// @author Julia Casarin Puget
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
-#include "Basics/Common.h"
-#include "RestHandler/RestBaseHandler.h"
+#include <string>
+#include <unordered_set>
 
 namespace arangodb {
-
-////////////////////////////////////////////////////////////////////////////////
-/// @brief admin log request handler
-////////////////////////////////////////////////////////////////////////////////
-
-class RestAdminLogHandler : public RestBaseHandler {
- public:
-  explicit RestAdminLogHandler(application_features::ApplicationServer&,
-                               GeneralRequest*, GeneralResponse*);
-
- public:
-  char const* name() const override final { return "RestAdminLogHandler"; }
-  RequestLane lane() const override final { return RequestLane::CLIENT_FAST; }
-  RestStatus execute() override;
-
- private:
-  arangodb::Result verifyPermitted();
-  void clearLogs();
-  RestStatus reportLogs(bool newFormat);
-  void handleLogLevel();
-  void handleLogStructuredParams();
-
+namespace structuredParams {
+const std::unordered_set<std::string> allowList = {
+    "database",
+    "username",
+    "url",
+    "collection",
+    "queryid",
+    "viewId",
+    "indexid",
+    "replication",
+    "pregelid",
+    "transactionid"
 };
+}
 }  // namespace arangodb
-

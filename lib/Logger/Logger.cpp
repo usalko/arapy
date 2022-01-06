@@ -41,11 +41,14 @@
 #include "Basics/operating-system.h"
 #include "Basics/system-functions.h"
 #include "Basics/voc-errors.h"
+#include "Basics/ReadLocker.h"
+#include "Basics/WriteLocker.h"
 #include "Logger/LogAppender.h"
 #include "Logger/LogAppenderFile.h"
 #include "Logger/LogContext.h"
 #include "Logger/LogGroup.h"
 #include "Logger/LogMacros.h"
+#include "Logger/LogStructuredParamsAllowList.h"
 #include "Logger/LogThread.h"
 
 #ifdef _WIN32
@@ -115,6 +118,8 @@ void LogMessage::shrink(std::size_t maxLength) {
 std::atomic<bool> Logger::_active(false);
 std::atomic<LogLevel> Logger::_level(LogLevel::INFO);
 
+std::unordered_set<std::string> Logger::_structuredLogParams({});
+arangodb::basics::ReadWriteLock Logger::_structuredParamsLock;
 LogTimeFormats::TimeFormat Logger::_timeFormat(LogTimeFormats::TimeFormat::UTCDateString);
 bool Logger::_showIds(false);
 bool Logger::_showLineNumber(false);
@@ -153,6 +158,11 @@ Logger::ThreadRef::~ThreadRef() {
 LogGroup& Logger::defaultLogGroup() { return ::defaultLogGroupInstance; }
 
 LogLevel Logger::logLevel() { return _level.load(std::memory_order_relaxed); }
+
+std::unordered_set<std::string> Logger::structuredLogParams() {
+  READ_LOCKER(guard, _structuredParamsLock);
+  return _structuredLogParams;
+}
 
 std::vector<std::pair<std::string, LogLevel>> Logger::logLevelTopics() {
   return LogTopic::logLevelTopics();
@@ -219,10 +229,75 @@ void Logger::setLogLevel(std::string const& levelName) {
   }
 }
 
+void Logger::setLogStructuredParam(std::pair<std::string, bool> const& paramAndValue) {
+  auto const& paramName = paramAndValue.first;
+  bool value = paramAndValue.second;
+  if (value) {
+    if (auto it = _structuredLogParams.find(paramName);
+        it == _structuredLogParams.end()) {
+      _structuredLogParams.emplace(paramName);
+    }
+  } else {
+    if (auto it = _structuredLogParams.find(paramName);
+        it != _structuredLogParams.end()) {
+      _structuredLogParams.erase(it);
+    }
+  }
+}
+
 void Logger::setLogLevel(std::vector<std::string> const& levels) {
   for (auto const& level : levels) {
     setLogLevel(level);
   }
+}
+
+std::unordered_map<std::string, bool> const Logger::filterInvalidParams(std::vector<std::string> const& params) {
+  std::unordered_map<std::string, bool> validParams;
+  for (auto const& param : params) {
+    std::string l = StringUtils::tolower(param);
+    std::vector<std::string> v = StringUtils::split(l, '=');
+    size_t vSize = v.size();
+    if (!vSize || vSize > 2) {
+      LOG_TOPIC("4d971", ERR, arangodb::Logger::FIXME)
+          << "strange log attribute and value set '" + param + "'";
+    } else {
+      StringUtils::trimInPlace(v[0]);
+      if (!structuredParams::allowList.contains(v[0])) {
+        LOG_TOPIC("c4c17", ERR, arangodb::Logger::FIXME)
+            << "strange log parameter '" + v[0] + "'";
+        continue;
+      }
+      if (vSize == 2) {
+        StringUtils::trimInPlace(v[1]);
+      }
+      if (vSize == 1 || v[1] == "true") {
+        validParams[v[0]] = true;
+      } else {
+        if (v[1] == "false") {
+          validParams[v[0]] = false;
+        } else {
+          LOG_TOPIC("5d210", ERR, arangodb::Logger::FIXME)
+              << "strange value '" + v[1] + "'";
+        }
+      }
+    }
+  }
+  return validParams;
+}
+
+
+void Logger::setLogStructuredParamsOnServerStart(std::vector<std::string> const& params) {
+    for (auto const& paramAndValue: filterInvalidParams(params)) {
+      setLogStructuredParam(paramAndValue);
+    }
+}
+
+void Logger::setLogStructuredParams(std::vector<std::string> const& params) {
+  std::unordered_map<std::string, bool> validParams = filterInvalidParams(params);
+    WRITE_LOCKER(guard, Logger::_structuredParamsLock);
+    for (auto const& paramAndValue : validParams) {
+      setLogStructuredParam(paramAndValue);
+    }
 }
 
 void Logger::setRole(char role) { _role = role; }
@@ -456,7 +531,8 @@ void Logger::log(char const* logid, char const* function, char const* file, int 
         out.push_back('"');
       }
       // value of date/time is always safe to print
-      LogTimeFormats::writeTime(out, _timeFormat, std::chrono::system_clock::now());
+      LogTimeFormats::writeTime(out, _timeFormat,
+                                std::chrono::system_clock::now());
       if (LogTimeFormats::isStringFormat(_timeFormat)) {
         out.push_back('"');
       }
@@ -551,20 +627,27 @@ void Logger::log(char const* logid, char const* function, char const* file, int 
       out.append(",\"hostname\":");
       dumper.appendString(_hostname.data(), _hostname.size());
     }
-  
-    // meta data from log context
-    LogContext::OverloadVisitor visitor([&out, &dumper](std::string_view const& key, auto&& value) {
-      out.push_back(',');
-      dumper.appendString(key.data(), key.size());
-      out.push_back(':');
-      if constexpr (std::is_same_v<std::string_view, std::remove_cv_t<std::remove_reference_t<decltype(value)>>>) {
-        dumper.appendString(value.data(), key.size());
-      } else {
-        out.append(std::to_string(value));
-      }
-    });
-    logContext.visit(visitor);
-    
+
+    {
+      READ_LOCKER(guard, _structuredParamsLock);
+      // meta data from log context
+      LogContext::OverloadVisitor visitor([&out, &dumper](
+                                              std::string_view const& key,
+                                              auto&& value) {
+        out.push_back(',');
+        dumper.appendString(key.data(), key.size());
+        out.push_back(':');
+        if constexpr (std::is_same_v<std::string_view,
+                                     std::remove_cv_t<std::remove_reference_t<
+                                         decltype(value)>>>) {
+          dumper.appendString(value.data(), value.size());
+        } else {
+          out.append(std::to_string(value));
+        }
+      });
+      logContext.visit(visitor);
+    }
+
     // the message itself
     {
       out.append(",\"message\":");
@@ -602,7 +685,8 @@ void Logger::log(char const* logid, char const* function, char const* file, int 
     }
 
     // human readable format
-    LogTimeFormats::writeTime(out, _timeFormat, std::chrono::system_clock::now());
+    LogTimeFormats::writeTime(out, _timeFormat,
+                              std::chrono::system_clock::now());
     out.push_back(' ');
 
     // output prefix
@@ -672,9 +756,9 @@ void Logger::log(char const* logid, char const* function, char const* file, int 
       out.append("] ", 2);
     }
 
-    // the offset is used by the in-memory logger, and it cuts off everything from the start
-    // of the concatenated log string until the offset. only what's after the offset gets
-    // displayed in the web UI
+    // the offset is used by the in-memory logger, and it cuts off everything from
+    // the start of the concatenated log string until the offset. only what's after
+    // the offset gets displayed in the web UI
     TRI_ASSERT(out.size() < static_cast<size_t>(UINT32_MAX));
     offset = static_cast<uint32_t>(out.size());
 
@@ -690,19 +774,30 @@ void Logger::log(char const* logid, char const* function, char const* file, int 
       out.append("} ", 2);
     }
 
-    // meta data from log 
-    LogContext::OverloadVisitor visitor([&out](std::string_view const& key, auto&& value) {
-      out.push_back('[');
-      out.append(key).append(": ", 2);
-      if constexpr (std::is_same_v<std::string_view, std::remove_cv_t<std::remove_reference_t<decltype(value)>>>) {
-        out.append(value);
-      } else {
-        out.append(std::to_string(value));
-      }
-      out.append("] ", 2);
-    });
-    logContext.visit(visitor);
-    
+    {
+
+      READ_LOCKER(guard, _structuredParamsLock);
+      // JULIA
+      //  meta data from log
+      LogContext::OverloadVisitor visitor([&out](std::string_view const& key,
+                                                 auto&& value) {
+        if (!_structuredLogParams.contains(key.data())) {
+          return;
+        }
+        out.push_back('[');
+        out.append(key).append(": ", 2);
+        if constexpr (std::is_same_v<std::string_view,
+                                     std::remove_cv_t<std::remove_reference_t<
+                                         decltype(value)>>>) {
+          out.append(value);
+        } else {
+          out.append(std::to_string(value));
+        }
+        out.append("] ", 2);
+      });
+      logContext.visit(visitor);
+    }
+
     // generate the complete message
     out.append(message);
   }

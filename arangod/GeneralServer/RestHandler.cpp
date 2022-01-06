@@ -53,9 +53,6 @@ using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
 
-constexpr char UrlName[] = "url";
-constexpr char UserName[] = "username";
-
 
 RestHandler::RestHandler(application_features::ApplicationServer& server,
                          GeneralRequest* request, GeneralResponse* response)
@@ -418,7 +415,8 @@ void RestHandler::runHandlerStateMachine() {
         _statistics.SET_REQUEST_END();
         // Callback may stealStatistics!
         _callback(this);
-        // No need to finalize here!
+
+        shutdownExecute(true);
         return;
 
       case HandlerState::DONE:

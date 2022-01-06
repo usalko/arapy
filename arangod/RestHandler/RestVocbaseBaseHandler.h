@@ -228,8 +228,8 @@ class RestVocbaseBaseHandler : public RestBaseHandler {
 
  private:
   static constexpr char DatabaseName[] = "database";
-  std::shared_ptr<LogContext::Values> _scopeValues;
-  LogContext::EntryPtr _logContextEntry;
+  std::shared_ptr<LogContext::Values> _scopeVocbaseValues;
+  LogContext::EntryPtr _logContextVocbaseEntry;
 
 };
 

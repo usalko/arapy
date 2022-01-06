@@ -67,6 +67,7 @@ RestCursorHandler::~RestCursorHandler() {
 }
 
 RestStatus RestCursorHandler::execute() {
+
   // extract the sub-request type
   rest::RequestType const type = _request->requestType();
 
