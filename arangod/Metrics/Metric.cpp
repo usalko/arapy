@@ -43,6 +43,9 @@ void Metric::toPrometheusBegin(std::string& result,
   result.append("# TYPE ").append(name).append(" ").append(type()).append("\n");
 }
 
+void Metric::toVPack(application_features::ApplicationServer& server,
+                     velocypack::Builder& builder) const {}
+
 Metric::~Metric() = default;
 
 std::ostream& operator<<(std::ostream& output, CounterType const& s) {

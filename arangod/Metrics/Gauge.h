@@ -25,6 +25,9 @@
 #include "Basics/debugging.h"
 #include "Metrics/Metric.h"
 
+#include <velocypack/Value.h>
+#include <velocypack/Builder.h>
+
 #include <atomic>
 
 namespace arangodb::metrics {
@@ -56,6 +59,13 @@ class Gauge final : public Metric {
     result.push_back(' ');
     result.append(std::to_string(load()));
     result.push_back('\n');
+  }
+
+  void toVPack(application_features::ApplicationServer& server,
+               velocypack::Builder& builder) const final {
+    builder.add(velocypack::Value{name()});
+    builder.add(velocypack::Value{labels()});
+    builder.add(velocypack::Value{load(std::memory_order_relaxed)});
   }
 
   [[nodiscard]] T load(

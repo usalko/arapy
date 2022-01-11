@@ -22,13 +22,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Metrics/MetricsFeature.h"
-
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "ApplicationFeatures/GreetingsFeaturePhase.h"
 #include "Basics/application-exit.h"
 #include "Basics/debugging.h"
 #include "Cluster/ServerState.h"
 #include "Logger/LoggerFeature.h"
+#include "Metrics/ClusterMetricsFeature.h"
 #include "Metrics/Metric.h"
 #include "ProgramOptions/ProgramOptions.h"
 #include "ProgramOptions/Section.h"
@@ -36,6 +36,7 @@
 #include "RocksDBEngine/RocksDBEngine.h"
 #include "Statistics/StatisticsFeature.h"
 #include "StorageEngine/EngineSelectorFeature.h"
+#include "Containers/FlatHashSet.h"
 
 #include <frozen/string.h>
 #include <frozen/unordered_map.h>
@@ -580,6 +581,11 @@ void MetricsFeature::validateOptions(std::shared_ptr<options::ProgramOptions>) {
 }
 
 void MetricsFeature::toPrometheus(std::string& result, bool v2) const {
+  auto& cm = server().getFeature<ClusterMetricsFeature>();
+  if (cm.isEnabled()) {
+    cm.asyncUpdate();
+  }
+
   // minimize reallocs
   result.reserve(32768);
 
@@ -587,39 +593,8 @@ void MetricsFeature::toPrometheus(std::string& result, bool v2) const {
   auto& q = server().getFeature<QueryRegistryFeature>();
   q.updateMetrics();
   {
-    bool changed = false;
-
     std::lock_guard guard(_lock);
-    if (!_globalLabels.contains("shortname")) {
-      std::string shortName = ServerState::instance()->getShortName();
-      // Very early after a server start it is possible that the
-      // short name is not yet known. This check here is to prevent
-      // that the label is permanently empty if metrics are requested
-      // too early.
-      if (!shortName.empty()) {
-        _globalLabels.try_emplace("shortname", std::move(shortName));
-        changed = true;
-      }
-    }
-    if (!_globalLabels.contains("role") && ServerState::instance() != nullptr &&
-        ServerState::instance()->getRole() != ServerState::ROLE_UNDEFINED) {
-      _globalLabels.try_emplace(
-          "role",
-          ServerState::roleToString(ServerState::instance()->getRole()));
-      changed = true;
-    }
-    if (changed) {
-      bool first = true;
-      for (auto const& i : _globalLabels) {
-        if (!first) {
-          _globalLabelsStr += ",";
-        } else {
-          first = false;
-        }
-        _globalLabelsStr += i.first + "=\"" + i.second + "\"";
-      }
-    }
-
+    unsafeInitTo();
     std::string lastType;
     std::string name;
     for (auto const& i : _registry) {
@@ -651,7 +626,7 @@ void MetricsFeature::toPrometheus(std::string& result, bool v2) const {
           }
         }
         empty = false;
-      } else if (kSuppressionsV2.count({name.data(), name.size()})) {
+      } else if (kSuppressionsV2.count({name})) {
         continue;
       }
       if (lastType != name) {
@@ -677,10 +652,73 @@ void MetricsFeature::toPrometheus(std::string& result, bool v2) const {
   if (engineName == RocksDBEngine::EngineName) {
     es.getStatistics(result, v2);
   }
+  if (cm.isEnabled()) {
+    cm.toPrometheus(result, _globalLabelsStr);
+  }
 }
 
 ServerStatistics& MetricsFeature::serverStatistics() noexcept {
   return *_serverStatistics;
+}
+
+constexpr auto kCoordinatorMetrics =
+    frozen::make_unordered_set<frozen::string>({
+        "arangosearch_link_stats",
+        "arangosearch_num_failed_commits",
+        "arangosearch_num_failed_cleanups",
+        "arangosearch_num_failed_consolidations",
+        "arangosearch_commit_time",
+        "arangosearch_cleanup_time",
+        "arangosearch_consolidation_time",
+    });
+
+void MetricsFeature::toVPack(VPackBuilder& builder, bool coordinator) const {
+  builder.openArray(true);
+  {
+    std::lock_guard guard(_lock);
+    unsafeInitTo();
+    for (auto const& i : _registry) {
+      auto const name = i.second->name();
+      if (kSuppressionsV2.count(name) ||
+          (coordinator && !kCoordinatorMetrics.count(name))) {
+        continue;
+      }
+      i.second->toVPack(server(), builder);
+    }
+  }
+  builder.close();
+}
+
+void MetricsFeature::unsafeInitTo() const {
+  bool changed = false;
+  if (!_globalLabels.contains("shortname")) {
+    std::string shortName = ServerState::instance()->getShortName();
+    // Very early after a server start it is possible that the
+    // short name is not yet known. This check here is to prevent
+    // that the label is permanently empty if metrics are requested
+    // too early.
+    if (!shortName.empty()) {
+      _globalLabels.try_emplace("shortname", std::move(shortName));
+      changed = true;
+    }
+  }
+  if (!_globalLabels.contains("role") && ServerState::instance() != nullptr &&
+      ServerState::instance()->getRole() != ServerState::ROLE_UNDEFINED) {
+    _globalLabels.try_emplace(
+        "role", ServerState::roleToString(ServerState::instance()->getRole()));
+    changed = true;
+  }
+  if (changed) {
+    bool first = true;
+    for (auto const& i : _globalLabels) {
+      if (!first) {
+        _globalLabelsStr += ",";
+      } else {
+        first = false;
+      }
+      _globalLabelsStr += i.first + "=\"" + i.second + "\"";
+    }
+  }
 }
 
 }  // namespace arangodb::metrics

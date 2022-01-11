@@ -42,23 +42,27 @@ class Batch final : public Metric {
                     std::string_view) const final {
     load().toPrometheus(result, globals, labels());
   }
+  void toVPack(application_features::ApplicationServer& server,
+               velocypack::Builder& builder) const final {
+    load().toVPack(server, builder, labels());
+  }
   void toPrometheusBegin(std::string& result,
                          std::string_view name) const final {
     std::lock_guard guard{_m};
     _metric.needName();
   }
 
-  void store(T&& metric) {
+  void store(T metric) {
     std::lock_guard guard{_m};
     _metric = std::move(metric);
   }
 
- private:
   T load() const {
     std::lock_guard guard{_m};
     return _metric;
   }
 
+ private:
   mutable std::mutex _m;
   T _metric;
 };

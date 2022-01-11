@@ -75,8 +75,8 @@ class AsyncLinkHandle final {
   void reset();
 
   AsyncValue<IResearchLink> _link;
-  std::atomic_bool _asyncTerminate{
-      false};  // trigger termination of long-running async jobs
+  std::atomic_bool _asyncTerminate{false};
+  // trigger termination of long-running async jobs
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +155,7 @@ class IResearchLink {
   static bool canBeDropped() {
     // valid for a link to be dropped from an ArangoSearch view
     return true;
-  };
+  }
 
   //////////////////////////////////////////////////////////////////////////////
   /// @return the associated collection
@@ -278,8 +278,8 @@ class IResearchLink {
   /// @brief initialize from the specified definition used in make(...)
   /// @return success
   ////////////////////////////////////////////////////////////////////////////////
-  Result init(velocypack::Slice const& definition,
-              InitCallback const& initCallback = {});
+  virtual Result init(velocypack::Slice definition,
+                      InitCallback const& initCallback = {});
 
   ////////////////////////////////////////////////////////////////////////////////
   /// @return arangosearch internal format identifier
@@ -321,6 +321,8 @@ class IResearchLink {
     void needName() const;
     void toPrometheus(std::string& result, std::string_view globals,
                       std::string_view labels) const;
+    void toVPack(application_features::ApplicationServer& server,
+                 velocypack::Builder& builder, std::string_view labels) const;
 
    private:
     mutable bool _needName{false};
@@ -360,7 +362,7 @@ class IResearchLink {
   /// @brief get index stats for current snapshot
   /// @note Unsafe, can only be called as in the stats()
   ////////////////////////////////////////////////////////////////////////////////
-  LinkStats statsUnsafe() const;
+  LinkStats updateStatsUnsafe() const;
 
   friend struct CommitTask;
   friend struct ConsolidationTask;

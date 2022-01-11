@@ -27,19 +27,20 @@
 #include <velocypack/Builder.h>
 #include <velocypack/Slice.h>
 
+#include <memory>
+
 #include "Basics/StringUtils.h"
-#include "Cluster/ClusterInfo.h"
 #include "ClusterEngine/ClusterEngine.h"
 #include "IResearchCommon.h"
 #include "IResearchFeature.h"
 #include "IResearchLinkHelper.h"
-#include "IResearchViewCoordinator.h"
 #include "Indexes/IndexFactory.h"
 #include "Logger/Logger.h"
 #include "RocksDBEngine/RocksDBIndex.h"
 #include "StorageEngine/EngineSelectorFeature.h"
-#include "VelocyPackHelper.h"
 #include "VocBase/LogicalCollection.h"
+#include "Metrics/ClusterMetricsFeature.h"
+#include "IResearch/IResearchLinkMetrics.h"
 
 namespace {
 
@@ -67,8 +68,7 @@ ClusterEngineType getEngineType(
 
 }  // namespace
 
-namespace arangodb {
-namespace iresearch {
+namespace arangodb::iresearch {
 
 IResearchLinkCoordinator::IResearchLinkCoordinator(
     IndexId id, LogicalCollection& collection)
@@ -81,6 +81,79 @@ IResearchLinkCoordinator::IResearchLinkCoordinator(
   TRI_ASSERT(ServerState::instance()->isCoordinator());
   _unique = false;  // cannot be unique since multiple fields are indexed
   _sparse = true;   // always sparse
+}
+
+Result IResearchLinkCoordinator::init(
+    velocypack::Slice definition,
+    IResearchLink::InitCallback const& initCallback) {
+  auto r = IResearchLink::init(definition, initCallback);
+  auto& metric = IResearchLink::collection()
+                     .vocbase()
+                     .server()
+                     .getFeature<metrics::ClusterMetricsFeature>();
+  metric.asyncUpdate();
+  std::function batchToCoordinator =
+      [](metrics::ClusterMetricsFeature::CoordinatorMetrics& metrics,
+         std::string_view name, velocypack::Slice labels,
+         velocypack::Slice value) {
+        auto& cell = std::get<uint64_t>(
+            metrics[metrics::ClusterMetricsFeature::MetricKey{
+                name, labels.stringView()}]);
+        cell += value.getUIntUnchecked();
+      };
+  metrics::ClusterMetricsFeature::ToPrometheus batchToPrometheus{
+      [](std::string& result, std::string_view name) {
+        result.append("# HELP ").append(name);
+        result.push_back(' ');
+        result.append("NO HELP");  // TODO(MBkkt) Should be help string
+        result.push_back('\n');
+        result.append("# TYPE ").append(name).append(" gauge\n");
+      },
+      [](std::string& result, std::string_view globals,
+         metrics::ClusterMetricsFeature::MetricKey const& key,
+         metrics::ClusterMetricsFeature::MetricValue const& value) {
+        result.append(key.first);
+        result.push_back('{');
+        result.append(globals);
+        if (!key.second.empty()) {
+          if (!globals.empty()) {
+            result.push_back(',');
+          }
+          result.append(key.second);
+        }
+        result.push_back('}');
+        result.append(std::to_string(std::get<uint64_t>(value)));
+        result.push_back('\n');
+      }};
+  metric.add(arangosearch_num_buffered_docs::kName, batchToCoordinator,
+             batchToPrometheus);
+  metric.add(arangosearch_num_docs::kName, batchToCoordinator,
+             batchToPrometheus);
+  metric.add(arangosearch_num_live_docs::kName, batchToCoordinator,
+             batchToPrometheus);
+  metric.add(arangosearch_num_segments::kName, batchToCoordinator,
+             batchToPrometheus);
+  metric.add(arangosearch_num_files::kName, batchToCoordinator,
+             batchToPrometheus);
+  metric.add(arangosearch_index_size::kName, batchToCoordinator,
+             batchToPrometheus);
+  std::function gaugeToCoordinator =
+      [](metrics::ClusterMetricsFeature::CoordinatorMetrics& metrics,
+         std::string_view name, velocypack::Slice labels,
+         velocypack::Slice value) {
+        auto labelsStr = labels.stringView();
+        auto& cell = std::get<uint64_t>(
+            metrics[metrics::ClusterMetricsFeature::MetricKey{
+                name, labelsStr.substr(0, labelsStr.find(",shard=\""))}]);
+        cell += value.getUIntUnchecked();
+      };
+  metric.add(arangosearch_num_failed_commits::kName, gaugeToCoordinator);
+  metric.add(arangosearch_num_failed_cleanups::kName, gaugeToCoordinator);
+  metric.add(arangosearch_num_failed_consolidations::kName, gaugeToCoordinator);
+  metric.add(arangosearch_commit_time::kName, gaugeToCoordinator);
+  metric.add(arangosearch_cleanup_time::kName, gaugeToCoordinator);
+  metric.add(arangosearch_consolidation_time::kName, gaugeToCoordinator);
+  return r;
 }
 
 void IResearchLinkCoordinator::toVelocyPack(
@@ -128,8 +201,7 @@ bool IResearchLinkCoordinator::IndexFactory::equal(
 std::shared_ptr<Index> IResearchLinkCoordinator::IndexFactory::instantiate(
     LogicalCollection& collection, VPackSlice definition, IndexId id,
     bool /*isClusterConstructor*/) const {
-  auto link = std::shared_ptr<IResearchLinkCoordinator>(
-      new IResearchLinkCoordinator(id, collection));
+  auto link = std::make_shared<IResearchLinkCoordinator>(id, collection);
   auto res = link->init(definition);
 
   if (!res.ok()) {
@@ -144,7 +216,6 @@ Result IResearchLinkCoordinator::IndexFactory::normalize(
     bool isCreation, TRI_vocbase_t const& vocbase) const {
   // no attribute set in a definition -> old version
   constexpr LinkVersion defaultVersion = LinkVersion::MIN;
-
   return IResearchLinkHelper::normalize(normalized, definition, isCreation,
                                         vocbase, defaultVersion);
 }
@@ -152,13 +223,7 @@ Result IResearchLinkCoordinator::IndexFactory::normalize(
 std::shared_ptr<IResearchLinkCoordinator::IndexFactory>
 IResearchLinkCoordinator::createFactory(
     application_features::ApplicationServer& server) {
-  return std::shared_ptr<IResearchLinkCoordinator::IndexFactory>(
-      new IResearchLinkCoordinator::IndexFactory(server));
+  return std::make_shared<IResearchLinkCoordinator::IndexFactory>(server);
 }
 
-}  // namespace iresearch
-}  // namespace arangodb
-
-// -----------------------------------------------------------------------------
-// --SECTION--                                                       END-OF-FILE
-// -----------------------------------------------------------------------------
+}  // namespace arangodb::iresearch

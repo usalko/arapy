@@ -23,9 +23,6 @@
 
 #include "RestMetricsHandler.h"
 
-#include "Agency/AgencyComm.h"
-#include "Agency/AgencyFeature.h"
-#include "Agency/Agent.h"
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Cluster/ClusterFeature.h"
 #include "Cluster/ServerState.h"
@@ -35,17 +32,15 @@
 #include "Network/NetworkFeature.h"
 #include "Network/Utils.h"
 #include "Rest/Version.h"
-#include "RestServer/ServerFeature.h"
 #include "Metrics/MetricsFeature.h"
 
 #include <velocypack/Builder.h>
 #include <velocypack/velocypack-aliases.h>
+#include <iostream>
 
-using namespace arangodb;
-using namespace arangodb::basics;
-using namespace arangodb::rest;
-
+namespace arangodb {
 namespace {
+
 network::Headers buildHeaders(
     std::unordered_map<std::string, std::string> const& originalHeaders) {
   auto auth = AuthenticationFeature::instance();
@@ -60,6 +55,7 @@ network::Headers buildHeaders(
   }
   return headers;
 }
+
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,11 +68,10 @@ RestMetricsHandler::RestMetricsHandler(
     : RestBaseHandler(server, request, response) {}
 
 RestStatus RestMetricsHandler::execute() {
-  ServerSecurityFeature& security =
-      server().getFeature<ServerSecurityFeature>();
+  auto& security = server().getFeature<ServerSecurityFeature>();
 
   if (!security.canAccessHardenedApi()) {
-    // dont leak information about server internals here
+    // don't leak information about server internals here
     generateError(rest::ResponseCode::FORBIDDEN, TRI_ERROR_FORBIDDEN);
     return RestStatus::DONE;
   }
@@ -87,32 +82,19 @@ RestStatus RestMetricsHandler::execute() {
   }
 
   bool foundServerIdParameter;
-  std::string const& serverId =
-      _request->value("serverId", foundServerIdParameter);
+  auto const& serverId = _request->value("serverId", foundServerIdParameter);
 
   if (ServerState::instance()->isCoordinator() && foundServerIdParameter) {
     if (serverId != ServerState::instance()->getId()) {
       // not ourselves! - need to pass through the request
       auto& ci = server().getFeature<ClusterFeature>().clusterInfo();
-
-      bool found = false;
-      for (auto const& srv : ci.getServers()) {
-        // validate if server id exists
-        if (srv.first == serverId) {
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
+      if (auto servers = ci.getServers(); !servers.contains(serverId)) {
         generateError(rest::ResponseCode::NOT_FOUND,
                       TRI_ERROR_HTTP_BAD_PARAMETER,
                       std::string("unknown serverId supplied."));
         return RestStatus::DONE;
       }
-
-      NetworkFeature const& nf = server().getFeature<NetworkFeature>();
-      network::ConnectionPool* pool = nf.pool();
+      auto* pool = server().getFeature<NetworkFeature>().pool();
       if (pool == nullptr) {
         THROW_ARANGO_EXCEPTION(TRI_ERROR_SHUTTING_DOWN);
       }
@@ -134,6 +116,7 @@ RestStatus RestMetricsHandler::execute() {
             } else {
               // the response will not contain any velocypack.
               // we need to forward the request with content-type text/plain.
+              TRI_ASSERT(r.hasResponse());
               self->_response->setResponseCode(rest::ResponseCode::OK);
               self->_response->setContentType(rest::ContentType::TEXT);
               auto payload = r.response().stealPayload();
@@ -148,23 +131,32 @@ RestStatus RestMetricsHandler::execute() {
 
   auto& metrics = server().getFeature<metrics::MetricsFeature>();
   if (!metrics.exportAPI()) {
-    // dont export metrics, if so desired
+    // don't export metrics, if so desired
     generateError(rest::ResponseCode::NOT_FOUND, TRI_ERROR_HTTP_NOT_FOUND);
     return RestStatus::DONE;
   }
 
-  std::vector<std::string> const& suffixes = _request->suffixes();
-
-  bool v2 = false;
-  if (suffixes.size() > 0 && suffixes[0] == "v2") {
-    v2 = true;
+  auto const& suffixes = _request->suffixes();
+  auto const& values = _request->values();
+  bool const v2 = !suffixes.empty() && suffixes[0] == "v2";
+  if (values.contains("json")) {
+    TRI_ASSERT(v2);
+    bool const coordinator = values.contains("coordinator");
+    VPackBuilder builder;
+    metrics.toVPack(builder, coordinator);
+    _response->setResponseCode(rest::ResponseCode::OK);
+    _response->setContentType(rest::ContentType::VPACK);
+    auto result = builder.slice().toJson(&velocypack::Options::Defaults);
+    // fprintf(stderr, "%s\n", result.c_str()); // TODO remove it
+    _response->addPayload(builder.slice());
+  } else {
+    std::string result;
+    metrics.toPrometheus(result, v2);
+    _response->setResponseCode(rest::ResponseCode::OK);
+    _response->setContentType(rest::ContentType::TEXT);
+    _response->addRawPayload(result);
   }
-
-  std::string result;
-  metrics.toPrometheus(result, v2);
-  _response->setResponseCode(rest::ResponseCode::OK);
-  _response->setContentType(rest::ContentType::TEXT);
-  _response->addRawPayload(result);
-
   return RestStatus::DONE;
 }
+
+}  // namespace arangodb

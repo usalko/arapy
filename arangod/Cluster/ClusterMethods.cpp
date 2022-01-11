@@ -1352,6 +1352,41 @@ futures::Future<OperationResult> countOnCoordinator(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+/// @brief gets the metrics from DBServers
+////////////////////////////////////////////////////////////////////////////////
+
+futures::Future<metrics::RawDBServers> metricsOnCoordinator(
+    NetworkFeature& network, ClusterFeature& cluster) {
+  auto* pool = network.pool();
+  auto serverIds = cluster.clusterInfo().getCurrentDBServers();
+
+  std::vector<Future<network::Response>> futures;
+  futures.reserve(serverIds.size());
+  for (auto const& id : serverIds) {
+    network::Headers headers;
+    headers.emplace(StaticStrings::Accept,
+                    StaticStrings::MimeTypeJsonNoEncoding);
+    futures.push_back(network::sendRequest(
+        pool, "server:" + id, fuerte::RestVerb::Get, "/_admin/metrics/v2", {},
+        network::RequestOptions{}.param("json", "y").param("coordinator", "y"),
+        headers));
+  }
+  return collectAll(futures).thenValue(
+      [](std::vector<Try<network::Response>>&& responses) {
+        metrics::RawDBServers metrics;
+        metrics.reserve(responses.size());
+        for (auto& response : responses) {
+          if (!response.hasValue() || response->fail() ||
+              !response->hasResponse()) {
+            continue;  // Shit happens, just ignore it
+          }
+          metrics.push_back(response->response().stealPayload());
+        }
+        return metrics;
+      });
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /// @brief gets the selectivity estimates from DBservers
 ////////////////////////////////////////////////////////////////////////////////
 

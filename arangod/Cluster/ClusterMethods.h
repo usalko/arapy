@@ -31,6 +31,7 @@
 #include "Cluster/ClusterFeature.h"
 #include "Futures/Future.h"
 #include "Network/types.h"
+#include "Metrics/Parse.h"
 #include "Rest/CommonDefines.h"
 #include "Rest/GeneralResponse.h"
 #include "Transaction/MethodsApi.h"
@@ -122,6 +123,13 @@ futures::Future<OperationResult> figuresOnCoordinator(
 futures::Future<OperationResult> countOnCoordinator(
     transaction::Methods& trx, std::string const& collname,
     OperationOptions const& options, arangodb::transaction::MethodsApi api);
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief gets the metrics from DBServers
+////////////////////////////////////////////////////////////////////////////////
+
+futures::Future<metrics::RawDBServers> metricsOnCoordinator(
+    NetworkFeature& network, ClusterFeature& cluster);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief gets the selectivity estimates from DBservers

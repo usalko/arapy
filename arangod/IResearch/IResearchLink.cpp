@@ -43,12 +43,11 @@
 #include "IResearch/IResearchCompression.h"
 #include "IResearch/IResearchFeature.h"
 #include "IResearch/IResearchLinkHelper.h"
+#include "IResearch/IResearchLinkMetrics.h"
 #include "IResearch/IResearchPrimaryKeyFilter.h"
 #include "IResearch/IResearchView.h"
 #include "IResearch/IResearchViewCoordinator.h"
 #include "IResearch/VelocyPackHelper.h"
-#include "Metrics/BatchBuilder.h"
-#include "Metrics/GaugeBuilder.h"
 #include "Metrics/MetricsFeature.h"
 #include "RestServer/DatabaseFeature.h"
 #include "RestServer/DatabasePathFeature.h"
@@ -66,26 +65,6 @@ namespace {
 
 using namespace arangodb;
 using namespace arangodb::iresearch;
-
-DECLARE_GAUGE(arangosearch_num_buffered_docs, uint64_t,
-              "Number of buffered documents");
-DECLARE_GAUGE(arangosearch_num_docs, uint64_t, "Number of documents");
-DECLARE_GAUGE(arangosearch_num_live_docs, uint64_t, "Number of live documents");
-DECLARE_GAUGE(arangosearch_num_segments, uint64_t, "Number of segments");
-DECLARE_GAUGE(arangosearch_num_files, uint64_t, "Number of files");
-DECLARE_GAUGE(arangosearch_index_size, uint64_t, "Size of the index in bytes");
-DECLARE_GAUGE(arangosearch_num_failed_commits, uint64_t,
-              "Number of failed commits");
-DECLARE_GAUGE(arangosearch_num_failed_cleanups, uint64_t,
-              "Number of failed cleanups");
-DECLARE_GAUGE(arangosearch_num_failed_consolidations, uint64_t,
-              "Number of failed consolidations");
-DECLARE_GAUGE(arangosearch_commit_time, uint64_t,
-              "Average time of few last commits");
-DECLARE_GAUGE(arangosearch_cleanup_time, uint64_t,
-              "Average time of few last cleanups");
-DECLARE_GAUGE(arangosearch_consolidation_time, uint64_t,
-              "Average time of few last consolidations");
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief container storing the link state for a given TransactionState
@@ -281,10 +260,10 @@ struct Task {
 template<typename T>
 T getMetric(const IResearchLink& link) {
   T metric;
+  metric.addLabel("db", link.getDbName());
   metric.addLabel("view", link.getViewId());
   metric.addLabel("collection", link.getCollectionName());
   metric.addLabel("shard", link.getShardName());
-  metric.addLabel("db", link.getDbName());
   return metric;
 }
 
@@ -358,8 +337,7 @@ struct CommitTask : Task<CommitTask> {
   size_t cleanupIntervalStep{};
 };
 
-void CommitTask::finalize(IResearchLink* link,
-                          IResearchLink::CommitResult code) {
+void CommitTask::finalize(IResearchLink* l, IResearchLink::CommitResult code) {
   constexpr size_t kMaxNonEmptyCommits = 10;
   constexpr size_t kMaxPendingConsolidations = 3;
 
@@ -375,7 +353,7 @@ void CommitTask::finalize(IResearchLink* link,
               kMaxPendingConsolidations &&
           state->nonEmptyCommits.fetch_add(1, std::memory_order_acq_rel) >=
               kMaxNonEmptyCommits) {
-        link->scheduleConsolidation(consolidationIntervalMsec);
+        l->scheduleConsolidation(consolidationIntervalMsec);
         state->nonEmptyCommits.store(0, std::memory_order_release);
       }
     }
@@ -816,7 +794,7 @@ void IResearchLink::afterTruncate(TRI_voc_tick_t tick,
     // update reader
     _dataStore._reader = reader;
 
-    _linkStats->store(statsUnsafe());
+    updateStatsUnsafe();
 
     auto subscription = std::atomic_load(&_flushSubscription);
 
@@ -1010,7 +988,7 @@ Result IResearchLink::commitUnsafeImpl(bool wait, CommitResult* code) {
     _dataStore._reader = reader;
 
     // update stats of the link
-    _linkStats->store(statsUnsafe());
+    updateStatsUnsafe();
 
     // update last committed tick
     impl.tick(_lastCommittedTick);
@@ -1183,7 +1161,7 @@ bool IResearchLink::hasSelectivityEstimate() {
                  // fields are indexed
 }
 
-Result IResearchLink::init(velocypack::Slice const& definition,
+Result IResearchLink::init(velocypack::Slice definition,
                            InitCallback const& initCallback) {
   // disassociate from view if it has not been done yet
   if (!unload().ok()) {
@@ -1729,6 +1707,7 @@ Result IResearchLink::initDataStore(
 
         CommitResult code{CommitResult::UNDEFINED};
         auto [res, timeMs] = link->commitUnsafe(true, &code);
+        link->updateStatsUnsafe();
 
         LOG_TOPIC("0e0ca", TRACE, iresearch::TOPIC)
             << "finished sync for arangosearch link '" << link->id() << "'";
@@ -2188,12 +2167,15 @@ AnalyzerPool::ptr IResearchLink::findAnalyzer(
 }
 
 IResearchLink::LinkStats IResearchLink::stats() const {
+  if (_linkStats) {
+    return _linkStats->load();
+  }
   // '_dataStore' can be asynchronously modified
   auto lock = _asyncSelf->lock();
-  return statsUnsafe();
+  return updateStatsUnsafe();
 }
 
-IResearchLink::LinkStats IResearchLink::statsUnsafe() const {
+IResearchLink::LinkStats IResearchLink::updateStatsUnsafe() const {
   LinkStats stats;
   if (!_dataStore) {
     return {};
@@ -2219,6 +2201,9 @@ IResearchLink::LinkStats IResearchLink::statsUnsafe() const {
   };
 
   reader->meta().meta.visit_segments(visitor);
+  if (_linkStats) {
+    _linkStats->store(stats);
+  }
   return stats;
 }
 
@@ -2250,7 +2235,7 @@ void IResearchLink::removeStats() {
     _linkStats = nullptr;
     auto builder = getMetric<metrics::BatchBuilder<LinkStats>>(*this);
     builder.setName("arangosearch_link_stats");
-    metricFeature.remove(std::move(builder));
+    metricFeature.remove(builder);
   }
   if (_numFailedCommits) {
     _numFailedCommits = nullptr;
@@ -2295,14 +2280,13 @@ const std::string& IResearchLink::getShardName() const noexcept {
 }
 
 std::string IResearchLink::getCollectionName() const {
-  if (ServerState::instance()->isDBServer()) {
-    return _meta._collectionName;
-  }
+  // We want getCollectionName return immutable name (for metrics consistency)
   if (ServerState::instance()->isSingleServer()) {
+    // in single server collection name is mutable, so we use immutable id
     return std::to_string(_collection.id().id());
   }
-  TRI_ASSERT(false);
-  return {};
+  TRI_ASSERT(ServerState::instance()->isDBServer());
+  return _meta._collectionName;  // in cluster collection name is immutable
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2323,10 +2307,8 @@ irs::utf8_path getPersistedPath(DatabasePathFeature const& dbPathFeature,
   dataPath += std::to_string(link.collection().vocbase().id());
   dataPath /= arangodb::iresearch::DATA_SOURCE_TYPE.name();
   dataPath += "-";
-  dataPath += std::to_string(
-      link.collection()
-          .id()
-          .id());  // has to be 'id' since this can be a per-shard collection
+  dataPath += std::to_string(link.collection().id().id());
+  // has to be 'id' since this can be a per-shard collection
   dataPath += "_";
   dataPath += std::to_string(link.id().id());
 
@@ -2377,6 +2359,36 @@ void IResearchLink::LinkStats::toPrometheus(std::string& result,       //
   writeMetric(arangosearch_index_size::kName, "Size of the index in bytes",
               indexSize);
   _needName = false;
+}
+
+void IResearchLink::LinkStats::toVPack(
+    application_features::ApplicationServer& server,
+    velocypack::Builder& builder, std::string_view labels) const {
+  auto const start = labels.find(",shard=\"");
+  std::string /*TODO(MBkkt) Fix cluster info interface*/ shardId{
+      labels.substr(start + 8, labels.size() - (start + 8) - 1)};
+  auto r =
+      server.getFeature<ClusterFeature>().clusterInfo().getResponsibleServer(
+          shardId);
+  if (r->empty()) {
+    return;  // TODO(MBkkt) We should fix cluster info :(
+  }
+  if ((*r)[0] != ServerState::instance()->getId()) {
+    return;  // We not in leader shard, so we just return
+             // (We want collect only leader shards link stats)
+  }
+  labels = labels.substr(0, start);
+  auto addMetric = [&](std::string_view name, uint64_t value) {
+    builder.add(velocypack::Value{name});
+    builder.add(velocypack::Value{labels});
+    builder.add(velocypack::Value{value});
+  };
+  addMetric(arangosearch_num_buffered_docs::kName, numBufferedDocs);
+  addMetric(arangosearch_num_docs::kName, numDocs);
+  addMetric(arangosearch_num_live_docs::kName, numLiveDocs);
+  addMetric(arangosearch_num_segments::kName, numSegments);
+  addMetric(arangosearch_num_files::kName, numFiles);
+  addMetric(arangosearch_index_size::kName, indexSize);
 }
 
 std::tuple<uint64_t, uint64_t, uint64_t> IResearchLink::numFailed() const {

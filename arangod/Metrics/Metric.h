@@ -26,8 +26,20 @@
 
 #include <iosfwd>
 #include <string_view>
+#include <string>
 
-namespace arangodb::metrics {
+namespace arangodb {
+namespace velocypack {
+
+class Builder;
+
+}  // namespace velocypack
+namespace application_features {
+
+class ApplicationServer;
+
+}  // namespace application_features
+namespace metrics {
 
 class Metric {
  public:
@@ -43,6 +55,8 @@ class Metric {
                             std::string_view alternativeName) const = 0;
   virtual void toPrometheusBegin(std::string& result,
                                  std::string_view name) const;
+  virtual void toVPack(application_features::ApplicationServer& server,
+                       velocypack::Builder& builder) const;
   virtual ~Metric();
 
  private:
@@ -61,4 +75,5 @@ using BufferType = gcl::counter::buffer<uint64_t, gcl::counter::atomicity::full,
 std::ostream& operator<<(std::ostream& output, CounterType const& s);
 std::ostream& operator<<(std::ostream& output, HistType const& v);
 
-}  // namespace arangodb::metrics
+}  // namespace metrics
+}  // namespace arangodb

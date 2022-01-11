@@ -36,8 +36,8 @@ namespace iresearch {
 arangodb::LogicalDataSource::Type const& dataSourceType();
 arangodb::LogTopic& logTopic();
 
-ADB_IGNORE_UNUSED static auto& DATA_SOURCE_TYPE = dataSourceType();
-ADB_IGNORE_UNUSED extern arangodb::LogTopic TOPIC;
+[[maybe_unused]] static auto& DATA_SOURCE_TYPE = dataSourceType();
+[[maybe_unused]] extern arangodb::LogTopic TOPIC;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief defines the implementation version of the iresearch view interface

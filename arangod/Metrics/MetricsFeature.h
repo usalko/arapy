@@ -60,10 +60,12 @@ class MetricsFeature final : public application_features::ApplicationFeature {
   bool remove(Builder const& builder);
 
   void toPrometheus(std::string& result, bool V2) const;
+  void toVPack(VPackBuilder& builder, bool cluster) const;
 
   ServerStatistics& serverStatistics() noexcept;
 
  private:
+  void unsafeInitTo() const;
   std::shared_ptr<Metric> doAdd(Builder& builder);
 
   std::map<MetricKey, std::shared_ptr<Metric>>
@@ -73,7 +75,7 @@ class MetricsFeature final : public application_features::ApplicationFeature {
       _globalLabels;  // TODO(MBkkt) abseil hash map
   mutable std::string _globalLabelsStr;
 
-  mutable std::recursive_mutex _lock;
+  mutable std::mutex _lock;
 
   std::unique_ptr<ServerStatistics> _serverStatistics;
 
