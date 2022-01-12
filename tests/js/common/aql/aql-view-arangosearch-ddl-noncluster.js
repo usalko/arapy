@@ -1019,7 +1019,7 @@ function IResearchFeatureDDLTestSuite () {
                                     .figures;
         assertNotEqual(null, figures);
         assertTrue(Object === figures.constructor);
-        assertEqual(6, Object.keys(figures).length);
+        assertEqual(5, Object.keys(figures).length);
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
@@ -1038,7 +1038,7 @@ function IResearchFeatureDDLTestSuite () {
                                     .figures;
         assertNotEqual(null, figures);
         assertTrue(Object === figures.constructor);
-        assertEqual(6, Object.keys(figures).length);
+        assertEqual(5, Object.keys(figures).length);
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
@@ -1059,7 +1059,7 @@ function IResearchFeatureDDLTestSuite () {
                                     .figures;
         assertNotEqual(null, figures);
         assertTrue(Object === figures.constructor);
-        assertEqual(6, Object.keys(figures).length);
+        assertEqual(5, Object.keys(figures).length);
         assertTrue(0 < figures.indexSize);
         assertEqual(2, figures.numDocs);
         assertEqual(2, figures.numLiveDocs);
@@ -1082,7 +1082,7 @@ function IResearchFeatureDDLTestSuite () {
                                     .figures;
         assertNotEqual(null, figures);
         assertTrue(Object === figures.constructor);
-        assertEqual(6, Object.keys(figures).length);
+        assertEqual(5, Object.keys(figures).length);
         assertTrue(0 < figures.indexSize);
         assertEqual(2, figures.numDocs);
         assertEqual(1, figures.numLiveDocs);
@@ -1104,7 +1104,7 @@ function IResearchFeatureDDLTestSuite () {
                                     .figures;
         assertNotEqual(null, figures);
         assertTrue(Object === figures.constructor);
-        assertEqual(6, Object.keys(figures).length);
+        assertEqual(5, Object.keys(figures).length);
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
