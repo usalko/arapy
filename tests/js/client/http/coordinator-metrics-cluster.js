@@ -97,10 +97,6 @@ function CoordinatorMetricsTestSuite() {
                     metrics[entry.name][entry2.labels.collection] = entry2.value;
                 });
             });
-            assertEqual(metrics["arangosearch_num_buffered_docs"]["foo1"], 0);
-            assertEqual(metrics["arangosearch_num_buffered_docs"]["foo2"], 0);
-            assertEqual(metrics["arangosearch_num_buffered_docs"]["foo3"], 0);
-
             assertEqual(metrics["arangosearch_num_docs"]["foo1"], 100);
             assertEqual(metrics["arangosearch_num_docs"]["foo2"], 101);
             assertEqual(metrics["arangosearch_num_docs"]["foo3"], 102);

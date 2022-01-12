@@ -252,9 +252,6 @@ TEST_F(IResearchLinkTest, test_defaults) {
     EXPECT_TRUE(figuresSlice.hasKey("numLiveDocs"));
     EXPECT_TRUE(figuresSlice.get("numLiveDocs").isNumber());
     EXPECT_EQ(0, figuresSlice.get("numLiveDocs").getNumber<size_t>());
-    EXPECT_TRUE(figuresSlice.hasKey("numBufferedDocs"));
-    EXPECT_TRUE(figuresSlice.get("numBufferedDocs").isNumber());
-    EXPECT_EQ(0, figuresSlice.get("numBufferedDocs").getNumber<size_t>());
     EXPECT_TRUE(figuresSlice.hasKey("numSegments"));
     EXPECT_TRUE(figuresSlice.get("numSegments").isNumber());
     EXPECT_EQ(0, figuresSlice.get("numSegments").getNumber<size_t>());
@@ -330,9 +327,6 @@ TEST_F(IResearchLinkTest, test_defaults) {
     EXPECT_TRUE(figuresSlice.hasKey("numLiveDocs"));
     EXPECT_TRUE(figuresSlice.get("numLiveDocs").isNumber());
     EXPECT_EQ(0, figuresSlice.get("numLiveDocs").getNumber<size_t>());
-    EXPECT_TRUE(figuresSlice.hasKey("numBufferedDocs"));
-    EXPECT_TRUE(figuresSlice.get("numBufferedDocs").isNumber());
-    EXPECT_EQ(0, figuresSlice.get("numBufferedDocs").getNumber<size_t>());
     EXPECT_TRUE(figuresSlice.hasKey("numSegments"));
     EXPECT_TRUE(figuresSlice.get("numSegments").isNumber());
     EXPECT_EQ(0, figuresSlice.get("numSegments").getNumber<size_t>());
@@ -404,9 +398,6 @@ TEST_F(IResearchLinkTest, test_defaults) {
       EXPECT_TRUE(figuresSlice.hasKey("numLiveDocs"));
       EXPECT_TRUE(figuresSlice.get("numLiveDocs").isNumber());
       EXPECT_EQ(0, figuresSlice.get("numLiveDocs").getNumber<size_t>());
-      EXPECT_TRUE(figuresSlice.hasKey("numBufferedDocs"));
-      EXPECT_TRUE(figuresSlice.get("numBufferedDocs").isNumber());
-      EXPECT_EQ(0, figuresSlice.get("numBufferedDocs").getNumber<size_t>());
       EXPECT_TRUE(figuresSlice.hasKey("numSegments"));
       EXPECT_TRUE(figuresSlice.get("numSegments").isNumber());
       EXPECT_EQ(0, figuresSlice.get("numSegments").getNumber<size_t>());
@@ -435,9 +426,6 @@ TEST_F(IResearchLinkTest, test_defaults) {
       EXPECT_TRUE(figuresSlice.hasKey("numLiveDocs"));
       EXPECT_TRUE(figuresSlice.get("numLiveDocs").isNumber());
       EXPECT_EQ(0, figuresSlice.get("numLiveDocs").getNumber<size_t>());
-      EXPECT_TRUE(figuresSlice.hasKey("numBufferedDocs"));
-      EXPECT_TRUE(figuresSlice.get("numBufferedDocs").isNumber());
-      EXPECT_EQ(0, figuresSlice.get("numBufferedDocs").getNumber<size_t>());
       EXPECT_TRUE(figuresSlice.hasKey("numSegments"));
       EXPECT_TRUE(figuresSlice.get("numSegments").isNumber());
       EXPECT_EQ(0, figuresSlice.get("numSegments").getNumber<size_t>());
@@ -2208,7 +2196,6 @@ void getStatsFromFolder(std::string_view path, uint64_t& indexSize,
 using LinkStats = arangodb::iresearch::IResearchLink::LinkStats;
 
 bool operator==(const LinkStats& lhs, const LinkStats& rhs) noexcept {
-  // ignore numBufferedDocs
   return lhs.numDocs == rhs.numDocs && lhs.numLiveDocs == rhs.numLiveDocs &&
          lhs.numSegments == rhs.numSegments && lhs.numFiles == rhs.numFiles &&
          lhs.indexSize == rhs.indexSize;
@@ -2522,7 +2509,6 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics1) {
     std::string expectedStr;
     expectedStr.reserve(1024);
 
-    expectedStr += "arangosearch_num_buffered_docs{}0\n";
     expectedStr += "arangosearch_num_docs{}3\n";
     expectedStr += "arangosearch_num_live_docs{}3\n";
     expectedStr += "arangosearch_num_segments{}3\n";
@@ -2587,7 +2573,6 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics2) {
     std::string expectedStr;
     expectedStr.reserve(1024);
 
-    expectedStr += "arangosearch_num_buffered_docs{}0\n";
     expectedStr += "arangosearch_num_docs{}3\n";
     expectedStr += "arangosearch_num_live_docs{}3\n";
     expectedStr += "arangosearch_num_segments{}2\n";
@@ -2615,9 +2600,6 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics2) {
     l->stats().toPrometheus(realStr, "test",
                             R"(view="foo",collection="bar","shard"="s0001")");
     std::string expectedStr;
-    expectedStr +=
-        "arangosearch_num_buffered_docs{test,view=\"foo\","
-        "collection=\"bar\",\"shard\"=\"s0001\"}0\n";
     expectedStr +=
         "arangosearch_num_docs{test,view=\"foo\","
         "collection=\"bar\",\"shard\"=\"s0001\"}3\n";
@@ -2653,12 +2635,6 @@ TEST_F(IResearchLinkMetricsTest, LinkAndMetics) {
     std::string collection = l->getCollectionName();
 
     std::string expected;
-
-    expected +=
-        R"(arangosearch_num_buffered_docs{view="h3039/42",collection=")";
-    expected += collection;
-    expected += R"(",shard="",db="2"}0)";
-    expected += "\n";
 
     expected += R"(arangosearch_num_docs{view="h3039/42",collection=")";
     expected += collection;
@@ -2698,12 +2674,6 @@ TEST_F(IResearchLinkMetricsTest, LinkAndMetics) {
     std::string collection = l->getCollectionName();
 
     std::string expected;
-
-    expected +=
-        R"(arangosearch_num_buffered_docs{view="h3039/42",collection=")";
-    expected += collection;
-    expected += R"(",shard="",db="2"}0)";
-    expected += "\n";
 
     expected += R"(arangosearch_num_docs{view="h3039/42",collection=")";
     expected += collection;

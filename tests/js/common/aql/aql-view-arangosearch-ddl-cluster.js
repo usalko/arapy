@@ -936,7 +936,6 @@ function IResearchFeatureDDLTestSuite () {
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
-        assertEqual(0, figures.numBufferedDocs);
         assertEqual(0, figures.numFiles);
         assertEqual(0, figures.numSegments);
       }
@@ -956,7 +955,6 @@ function IResearchFeatureDDLTestSuite () {
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
-        assertEqual(0, figures.numBufferedDocs);
         assertEqual(0, figures.numFiles);
         assertEqual(0, figures.numSegments);
       }
@@ -978,7 +976,6 @@ function IResearchFeatureDDLTestSuite () {
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
-        assertEqual(0, figures.numBufferedDocs);
         assertEqual(0, figures.numFiles);
         assertEqual(0, figures.numSegments);
       }
@@ -1002,7 +999,6 @@ function IResearchFeatureDDLTestSuite () {
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
-        assertEqual(0, figures.numBufferedDocs);
         assertEqual(0, figures.numFiles);
         assertEqual(0, figures.numSegments);
       }
@@ -1025,7 +1021,6 @@ function IResearchFeatureDDLTestSuite () {
         assertEqual(0, figures.indexSize);
         assertEqual(0, figures.numDocs);
         assertEqual(0, figures.numLiveDocs);
-        assertEqual(0, figures.numBufferedDocs);
         assertEqual(0, figures.numFiles);
         assertEqual(0, figures.numSegments);
       }

@@ -27,8 +27,6 @@
 
 namespace arangodb::iresearch {
 
-DECLARE_GAUGE(arangosearch_num_buffered_docs, uint64_t,
-              "Number of buffered documents");
 DECLARE_GAUGE(arangosearch_num_docs, uint64_t, "Number of documents");
 DECLARE_GAUGE(arangosearch_num_live_docs, uint64_t, "Number of live documents");
 DECLARE_GAUGE(arangosearch_num_segments, uint64_t, "Number of segments");

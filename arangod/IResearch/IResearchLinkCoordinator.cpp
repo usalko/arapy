@@ -125,8 +125,6 @@ Result IResearchLinkCoordinator::init(
         result.append(std::to_string(std::get<uint64_t>(value)));
         result.push_back('\n');
       }};
-  metric.add(arangosearch_num_buffered_docs::kName, batchToCoordinator,
-             batchToPrometheus);
   metric.add(arangosearch_num_docs::kName, batchToCoordinator,
              batchToPrometheus);
   metric.add(arangosearch_num_live_docs::kName, batchToCoordinator,

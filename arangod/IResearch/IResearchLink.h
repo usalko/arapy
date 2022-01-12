@@ -304,7 +304,6 @@ class IResearchLink {
   /// @brief index stats
   //////////////////////////////////////////////////////////////////////////////
   struct Stats {
-    uint64_t numBufferedDocs{};
     uint64_t numDocs{};
     uint64_t numLiveDocs{};
     uint64_t numSegments{};

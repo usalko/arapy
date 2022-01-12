@@ -2177,8 +2177,6 @@ IResearchLink::LinkStats IResearchLink::updateStatsUnsafe() const {
   if (!_dataStore) {
     return {};
   }
-  stats.numBufferedDocs = _dataStore._writer->buffered_docs();
-
   // copy of 'reader' is important to hold reference to the current snapshot
   auto reader = _dataStore._reader;
   if (!reader) {
@@ -2209,7 +2207,6 @@ void IResearchLink::toVelocyPackStats(VPackBuilder& builder) const {
 
   auto const stats = this->stats();
 
-  builder.add("numBufferedDocs", VPackValue(stats.numBufferedDocs));
   builder.add("numDocs", VPackValue(stats.numDocs));
   builder.add("numLiveDocs", VPackValue(stats.numLiveDocs));
   builder.add("numSegments", VPackValue(stats.numSegments));
@@ -2345,8 +2342,6 @@ void IResearchLink::LinkStats::toPrometheus(std::string& result,       //
     result.append(std::to_string(value));
     result.push_back('\n');
   };
-  writeMetric(arangosearch_num_buffered_docs::kName,
-              "Number of buffered documents", numBufferedDocs);
   writeMetric(arangosearch_num_docs::kName, "Number of documents", numDocs);
   writeMetric(arangosearch_num_live_docs::kName, "Number of live documents",
               numLiveDocs);
@@ -2380,7 +2375,6 @@ void IResearchLink::LinkStats::toVPack(
     builder.add(velocypack::Value{labels});
     builder.add(velocypack::Value{value});
   };
-  addMetric(arangosearch_num_buffered_docs::kName, numBufferedDocs);
   addMetric(arangosearch_num_docs::kName, numDocs);
   addMetric(arangosearch_num_live_docs::kName, numLiveDocs);
   addMetric(arangosearch_num_segments::kName, numSegments);
