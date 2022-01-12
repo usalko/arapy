@@ -626,7 +626,7 @@ void MetricsFeature::toPrometheus(std::string& result, bool v2) const {
           }
         }
         empty = false;
-      } else if (kSuppressionsV2.count({name})) {
+      } else if (kSuppressionsV2.count({name.data(), name.size()})) {
         continue;
       }
       if (lastType != name) {

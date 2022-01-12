@@ -793,7 +793,6 @@ void IResearchLink::afterTruncate(TRI_voc_tick_t tick,
 
     // update reader
     _dataStore._reader = reader;
-
     updateStatsUnsafe();
 
     auto subscription = std::atomic_load(&_flushSubscription);
@@ -986,8 +985,6 @@ Result IResearchLink::commitUnsafeImpl(bool wait, CommitResult* code) {
     // update reader
     TRI_ASSERT(_dataStore._reader != reader);
     _dataStore._reader = reader;
-
-    // update stats of the link
     updateStatsUnsafe();
 
     // update last committed tick
@@ -1430,6 +1427,7 @@ Result IResearchLink::init(velocypack::Slice definition,
         &metric.add(getMetric<arangosearch_cleanup_time>(*this));
     _avgConsolidationTimeMs =
         &metric.add(getMetric<arangosearch_consolidation_time>(*this));
+    updateStatsUnsafe();
   }
 
   return {};
@@ -1707,7 +1705,6 @@ Result IResearchLink::initDataStore(
 
         CommitResult code{CommitResult::UNDEFINED};
         auto [res, timeMs] = link->commitUnsafe(true, &code);
-        link->updateStatsUnsafe();
 
         LOG_TOPIC("0e0ca", TRACE, iresearch::TOPIC)
             << "finished sync for arangosearch link '" << link->id() << "'";
