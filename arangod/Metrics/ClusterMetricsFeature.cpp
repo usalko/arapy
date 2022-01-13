@@ -32,8 +32,7 @@ namespace arangodb::metrics {
 namespace {
 
 using namespace std::chrono_literals;
-constexpr std::chrono::steady_clock::duration kTimeout = 15ns;
-// TODO(MBkkt) Change to seconds when merge
+constexpr std::chrono::steady_clock::duration kTimeout = 15s;
 
 }  // namespace
 
@@ -54,7 +53,7 @@ void ClusterMetricsFeature::validateOptions(
 }
 
 void ClusterMetricsFeature::asyncUpdate() {
-  if (_count.fetch_add(1, std::memory_order_acq_rel) == 0) {
+  if (isEnabled() && _count.fetch_add(1, std::memory_order_acq_rel) == 0) {
     forceAsyncUpdate();
   }
 }

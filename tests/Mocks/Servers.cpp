@@ -67,6 +67,7 @@
 #include "RestServer/FlushFeature.h"
 #include "RestServer/InitDatabaseFeature.h"
 #include "Metrics/MetricsFeature.h"
+#include "Metrics/ClusterMetricsFeature.h"
 #include "RestServer/QueryRegistryFeature.h"
 #include "RestServer/SoftShutdownFeature.h"
 #include "RestServer/SystemDatabaseFeature.h"
@@ -907,6 +908,7 @@ MockCoordinator::MockCoordinator(bool start, bool useAgencyMock,
     : MockClusterServer(useAgencyMock,
                         arangodb::ServerState::RoleEnum::ROLE_COORDINATOR,
                         injectClusterIndexes) {
+  addFeature<arangodb::metrics::ClusterMetricsFeature>(false).disable();
   if (start) {
     MockCoordinator::startFeatures();
     MockCoordinator::createDatabase("_system");

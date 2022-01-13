@@ -91,7 +91,6 @@ Result IResearchLinkCoordinator::init(
                      .vocbase()
                      .server()
                      .getFeature<metrics::ClusterMetricsFeature>();
-  metric.asyncUpdate();
   std::function batchToCoordinator =
       [](metrics::ClusterMetricsFeature::CoordinatorMetrics& metrics,
          std::string_view name, velocypack::Slice labels,
@@ -151,6 +150,7 @@ Result IResearchLinkCoordinator::init(
   metric.add(arangosearch_commit_time::kName, gaugeToCoordinator);
   metric.add(arangosearch_cleanup_time::kName, gaugeToCoordinator);
   metric.add(arangosearch_consolidation_time::kName, gaugeToCoordinator);
+  metric.asyncUpdate();
   return r;
 }
 
