@@ -567,6 +567,7 @@ set(LIB_ARANGO_REPLICATION2_SOURCES
   Replication2/ReplicatedState/StateStatus.cpp
   Replication2/ReplicatedState/Supervision.cpp
   Replication2/ReplicatedState/SupervisionVelocyPackHell.cpp
+  Replication2/ReplicatedState/UnconfiguredStateManager.cpp Replication2/ReplicatedState/UnconfiguredStateManager.h
   Replication2/Version.cpp
   RestHandler/RestLogHandler.cpp
   RestHandler/RestLogInternalHandler.cpp

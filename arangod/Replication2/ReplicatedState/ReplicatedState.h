@@ -79,7 +79,8 @@ struct ReplicatedState final
   using FollowerType = typename ReplicatedStateTraits<S>::FollowerType;
   using LeaderType = typename ReplicatedStateTraits<S>::LeaderType;
 
-  explicit ReplicatedState(std::shared_ptr<replicated_log::ReplicatedLog> log,
+  explicit ReplicatedState(std::unique_ptr<ReplicatedStateCore> core,
+                           std::shared_ptr<replicated_log::ReplicatedLog> log,
                            std::shared_ptr<Factory> factory);
 
   /**

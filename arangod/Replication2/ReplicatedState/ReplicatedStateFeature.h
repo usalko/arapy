@@ -65,15 +65,17 @@ struct ReplicatedStateFeature {
    * @return
    */
   auto createReplicatedState(std::string_view name,
+                             std::unique_ptr<ReplicatedStateCore> core,
                              std::shared_ptr<replicated_log::ReplicatedLog> log)
       -> std::shared_ptr<ReplicatedStateBase>;
 
   template<typename S>
   auto createReplicatedStateAs(
-      std::string_view name, std::shared_ptr<replicated_log::ReplicatedLog> log)
+      std::string_view name, std::unique_ptr<ReplicatedStateCore> core,
+      std::shared_ptr<replicated_log::ReplicatedLog> log)
       -> std::shared_ptr<ReplicatedState<S>> {
     return std::dynamic_pointer_cast<ReplicatedState<S>>(
-        createReplicatedState(name, std::move(log)));
+        createReplicatedState(name, std::move(core), std::move(log)));
   }
 
  private:
@@ -82,6 +84,7 @@ struct ReplicatedStateFeature {
       : std::enable_shared_from_this<InternalFactoryBase> {
     virtual ~InternalFactoryBase() = default;
     virtual auto createReplicatedState(
+        std::unique_ptr<ReplicatedStateCore>,
         std::shared_ptr<replicated_log::ReplicatedLog>)
         -> std::shared_ptr<ReplicatedStateBase> = 0;
   };
@@ -101,9 +104,10 @@ struct ReplicatedStateFeature::InternalFactory : InternalFactoryBase,
   explicit InternalFactory(std::in_place_t, Args&&... args)
       : Factory(std::forward<Args>(args)...) {}
 
-  auto createReplicatedState(std::shared_ptr<replicated_log::ReplicatedLog> log)
+  auto createReplicatedState(std::unique_ptr<ReplicatedStateCore> core,
+                             std::shared_ptr<replicated_log::ReplicatedLog> log)
       -> std::shared_ptr<ReplicatedStateBase> override {
-    return std::make_shared<ReplicatedState<S>>(std::move(log),
+    return std::make_shared<ReplicatedState<S>>(std::move(core), std::move(log),
                                                 getStateFactory());
   }
 

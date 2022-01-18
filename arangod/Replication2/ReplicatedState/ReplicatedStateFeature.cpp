@@ -32,12 +32,13 @@ using namespace arangodb;
 using namespace arangodb::replication2;
 
 auto replicated_state::ReplicatedStateFeature::createReplicatedState(
-    std::string_view name, std::shared_ptr<replicated_log::ReplicatedLog> log)
+    std::string_view name, std::unique_ptr<ReplicatedStateCore> core,
+    std::shared_ptr<replicated_log::ReplicatedLog> log)
     -> std::shared_ptr<ReplicatedStateBase> {
   auto name_str =
       std::string{name};  // TODO C++20 transparent hashing not yet available
   if (auto iter = factories.find(name_str); iter != std::end(factories)) {
-    return iter->second->createReplicatedState(std::move(log));
+    return iter->second->createReplicatedState(std::move(core), std::move(log));
   }
   THROW_ARANGO_EXCEPTION(
       TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND);  // TODO fix error code

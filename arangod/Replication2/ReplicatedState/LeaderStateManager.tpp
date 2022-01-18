@@ -39,9 +39,10 @@ void LeaderStateManager<S>::run() {
   updateInternalState(LeaderInternalState::kWaitingForLeadershipEstablished);
   logLeader->waitForLeadership()
       .thenValue([weak = this->weak_from_this()](auto&& result) {
-        auto self  = weak.lock();
+        auto self = weak.lock();
         if (self == nullptr) {
-          return futures::Future<Result>{TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
+          return futures::Future<Result>{
+              TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
         }
         LOG_TOPIC("53ba1", TRACE, Logger::REPLICATED_STATE)
             << "LeaderStateManager established";
@@ -59,26 +60,29 @@ void LeaderStateManager<S>::run() {
             .thenValue([weak](std::unique_ptr<Iterator>&& result) {
               LOG_TOPIC("53ba0", TRACE, Logger::REPLICATED_STATE)
                   << "creating leader instance and starting recovery";
-              auto self  = weak.lock();
+              auto self = weak.lock();
               if (self == nullptr) {
-                return futures::Future<Result>{TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
+                return futures::Future<Result>{
+                    TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
               }
               self->updateInternalState(
                   LeaderInternalState::kRecoveryInProgress, result->range());
-              std::shared_ptr<IReplicatedLeaderState<S>> machine =
+              std::shared_ptr<IReplicatedLeaderState<S>> leaderState =
                   self->factory->constructLeader();
-              return machine->recoverEntries(std::move(result))
+              return leaderState->recoverEntries(std::move(result))
                   .then([weak,
-                         machine](futures::Try<Result>&& tryResult) mutable -> Result {
-                    auto self  = weak.lock();
+                         leaderState](futures::Try<Result>&& tryResult) mutable
+                        -> Result {
+                    auto self = weak.lock();
                     if (self == nullptr) {
-                      return Result{TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
+                      return Result{
+                          TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
                     }
                     try {
                       if (auto result = tryResult.get(); result.ok()) {
                         LOG_TOPIC("1a375", DEBUG, Logger::REPLICATED_STATE)
                             << "recovery on leader completed";
-                        self->state = machine;
+                        self->state = leaderState;
                         self->core->snapshot.updateStatus(
                             SnapshotStatus::kCompleted);
                         self->updateInternalState(
@@ -105,7 +109,7 @@ void LeaderStateManager<S>::run() {
       })
       .thenFinal(
           [weak = this->weak_from_this()](futures::Try<Result>&& result) {
-            auto self  = weak.lock();
+            auto self = weak.lock();
             if (self == nullptr) {
               return;
             }

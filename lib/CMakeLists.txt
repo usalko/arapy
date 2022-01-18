@@ -85,6 +85,7 @@ add_library(arango STATIC
   ApplicationFeatures/VersionFeature.cpp
   Basics/ArangoGlobalContext.cpp
   Basics/AttributeNameParser.cpp
+  Basics/CleanupFunctions.cpp
   Basics/ConditionLocker.cpp
   Basics/ConditionVariable.cpp
   Basics/CpuUsageSnapshot.cpp
@@ -93,13 +94,15 @@ add_library(arango STATIC
   Basics/DebugRaceController.cpp
   Basics/EncodingUtils.cpp
   Basics/ErrorCode.cpp
-  Basics/FeatureFlags.cpp
-  Basics/ResultError.cpp
   Basics/Exceptions.cpp
+  Basics/FeatureFlags.cpp
+  Basics/FileResult.cpp
   Basics/FileUtils.cpp
   Basics/FunctionUtils.cpp
   Basics/GlobalResourceMonitor.cpp
   Basics/HybridLogicalClock.cpp
+  Basics/Identifier.cpp
+  Basics/IndexIter.h
   Basics/LdapUrlParser.cpp
   Basics/LocalTaskQueue.cpp
   Basics/Mutex.cpp
@@ -110,13 +113,12 @@ add_library(arango STATIC
   Basics/PhysicalMemory.cpp
   Basics/ReadWriteLock.cpp
   Basics/ReadWriteSpinLock.cpp
-  Basics/Result.cpp
-  Basics/FileResult.cpp
-  Basics/Identifier.cpp
-  Basics/IndexIter.h
   Basics/ResourceUsage.cpp
+  Basics/Result.cpp
+  Basics/ResultError.cpp
   Basics/RocksDBLogger.cpp
   Basics/RocksDBUtils.cpp
+  Basics/SourceLocation.cpp
   Basics/StaticStrings.cpp
   Basics/StringBuffer.cpp
   Basics/StringHeap.cpp
@@ -126,7 +128,6 @@ add_library(arango STATIC
   Basics/Utf8Helper.cpp
   Basics/VelocyPackHelper.cpp
   Basics/application-exit.cpp
-  Basics/CleanupFunctions.cpp
   Basics/conversions.cpp
   Basics/csv.cpp
   Basics/datetime.cpp

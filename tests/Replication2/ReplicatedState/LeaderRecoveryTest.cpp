@@ -114,7 +114,8 @@ TEST_F(ReplicatedStateRecoveryTest, trigger_recovery) {
   leader->triggerAsyncReplication();
   auto replicatedState =
       std::dynamic_pointer_cast<ReplicatedState<MyHelperState>>(
-          feature->createReplicatedState("my-state", leaderLog));
+          feature->createReplicatedState(
+              "my-state", std::make_unique<ReplicatedStateCore>(), leaderLog));
   ASSERT_NE(replicatedState, nullptr);
   ASSERT_EQ(leaderState, nullptr);
 
@@ -192,7 +193,8 @@ TEST_F(ReplicatedStateRecoveryTest, trigger_recovery_error_DeathTest) {
   leader->triggerAsyncReplication();
   auto replicatedState =
       std::dynamic_pointer_cast<ReplicatedState<MyHelperState>>(
-          feature->createReplicatedState("my-state", leaderLog));
+          feature->createReplicatedState(
+              "my-state", std::make_unique<ReplicatedStateCore>(), leaderLog));
   ASSERT_NE(replicatedState, nullptr);
   ASSERT_EQ(leaderState, nullptr);
 

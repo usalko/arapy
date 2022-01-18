@@ -21,9 +21,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
+
 #include "ReplicatedState.h"
 
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 
@@ -33,6 +35,7 @@
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
 #include "Replication2/ReplicatedState/LeaderStateManager.h"
 #include "Replication2/ReplicatedState/FollowerStateManager.h"
+#include "Replication2/ReplicatedState/UnconfiguredStateManager.h"
 #include "Replication2/Streams/LogMultiplexer.h"
 #include "Replication2/Streams/StreamSpecification.h"
 #include "Replication2/Streams/Streams.h"
@@ -89,9 +92,13 @@ auto IReplicatedFollowerState<S>::getStream() const
 
 template<typename S>
 ReplicatedState<S>::ReplicatedState(
+    std::unique_ptr<ReplicatedStateCore> core,
     std::shared_ptr<replicated_log::ReplicatedLog> log,
     std::shared_ptr<Factory> factory)
-    : factory(std::move(factory)), log(std::move(log)) {}
+    : factory(std::move(factory)),
+      currentManager(
+          std::make_shared<UnconfiguredStateManager<S>>(std::move(core))),
+      log(std::move(log)) {}
 
 template<typename S>
 void ReplicatedState<S>::flush(std::unique_ptr<ReplicatedStateCore> core) {

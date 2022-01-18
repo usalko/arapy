@@ -42,7 +42,7 @@ void FollowerStateManager<S>::applyEntries(
                   range](futures::Try<Result> tryResult) {
         auto self = weak.lock();
         if (self == nullptr) {
-          return ;
+          return;
         }
         try {
           auto& result = tryResult.get();
@@ -84,7 +84,7 @@ void FollowerStateManager<S>::pollNewEntries() {
           futures::Try<std::unique_ptr<Iterator>> result) {
         auto self = weak.lock();
         if (self == nullptr) {
-          return ;
+          return;
         }
         try {
           self->applyEntries(std::move(result).get());
@@ -114,7 +114,7 @@ void FollowerStateManager<S>::tryTransferSnapshot(
                           hiddenState](futures::Try<Result>&& tryResult) {
     auto self = weak.lock();
     if (self == nullptr) {
-      return ;
+      return;
     }
     try {
       auto& result = tryResult.get();
@@ -182,9 +182,9 @@ void FollowerStateManager<S>::awaitLeaderShip() {
   logFollower->waitForLeaderAcked().thenFinal(
       [weak = this->weak_from_this()](
           futures::Try<replicated_log::WaitForResult>&& result) noexcept {
-        auto self  = weak.lock();
+        auto self = weak.lock();
         if (self == nullptr) {
-          return ;
+          return;
         }
         try {
           try {

@@ -55,7 +55,8 @@ TEST_F(ReplicatedStateFeatureTest, create_state_machine) {
   feature->registerStateType<MyState>("my-state");
 
   auto log = makeReplicatedLog(LogId{1});
-  auto instance = feature->createReplicatedState("my-state", log);
+  auto instance = feature->createReplicatedState(
+      "my-state", std::make_unique<ReplicatedStateCore>(), log);
 }
 
 TEST_F(ReplicatedStateFeatureTest, create_non_existing_state_machine) {
@@ -64,7 +65,10 @@ TEST_F(ReplicatedStateFeatureTest, create_non_existing_state_machine) {
 
   auto log = makeReplicatedLog(LogId{1});
   ASSERT_THROW(
-      { auto instance = feature->createReplicatedState("FOOBAR", log); },
+      {
+        auto instance = feature->createReplicatedState(
+            "FOOBAR", std::make_unique<ReplicatedStateCore>(), log);
+      },
       basics::Exception);
 }
 
