@@ -39,10 +39,16 @@ struct UnconfiguredStateManager
 
   [[nodiscard]] auto getStatus() const -> StateStatus override {
     basics::abortOrThrow(TRI_ERROR_NOT_IMPLEMENTED, ADB_HERE);
-  };
+  }
+
   [[nodiscard]] auto getSnapshotStatus() const -> SnapshotStatus override {
     basics::abortOrThrow(TRI_ERROR_NOT_IMPLEMENTED, ADB_HERE);
-  };
+  }
+
+  [[nodiscard]] auto
+  resign() && -> std::unique_ptr<ReplicatedStateCore> override {
+    return std::move(core);
+  }
 
   std::unique_ptr<ReplicatedStateCore> core;
 };

@@ -52,6 +52,8 @@ struct FollowerStateManager
 
   auto getFollowerState() -> std::shared_ptr<IReplicatedFollowerState<S>>;
 
+  auto resign() && -> std::unique_ptr<ReplicatedStateCore> override;
+
  private:
   void awaitLeaderShip();
   void ingestLogData();

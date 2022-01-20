@@ -101,7 +101,17 @@ ReplicatedState<S>::ReplicatedState(
       log(std::move(log)) {}
 
 template<typename S>
-void ReplicatedState<S>::flush(std::unique_ptr<ReplicatedStateCore> core) {
+void ReplicatedState<S>::flush() {
+  TRI_ASSERT(currentManager != nullptr);
+  // auto core = std::invoke([&]() -> std::unique_ptr<ReplicatedStateCore> {
+  //   if (currentManager != nullptr) {
+  //     return std::move(*currentManager).resign();
+  //   } else {
+  //     return nullptr;
+  //   }
+  // });
+  auto core = std::move(*currentManager).resign();
+  TRI_ASSERT(core != nullptr);
   auto participant = log->getParticipant();
   if (auto leader =
           std::dynamic_pointer_cast<replicated_log::ILogLeader>(participant);

@@ -53,7 +53,7 @@ struct IReplicatedFollowerStateBase;
 struct ReplicatedStateBase {
   virtual ~ReplicatedStateBase() = default;
 
-  virtual void flush(std::unique_ptr<ReplicatedStateCore>) = 0;
+  virtual void flush() = 0;
   virtual auto getStatus() -> StateStatus = 0;
   auto getLeader() -> std::shared_ptr<IReplicatedLeaderStateBase> {
     return getLeaderBase();
@@ -86,8 +86,7 @@ struct ReplicatedState final
   /**
    * Forces to rebuild the state machine depending on the replicated log state.
    */
-  void flush(std::unique_ptr<ReplicatedStateCore> =
-                 std::make_unique<ReplicatedStateCore>()) override;
+  void flush() override;
 
   /**
    * Returns the follower state machine. Returns nullptr if no follower state
@@ -108,6 +107,7 @@ struct ReplicatedState final
     virtual ~StateManagerBase() = default;
     virtual auto getStatus() const -> StateStatus = 0;
     virtual auto getSnapshotStatus() const -> SnapshotStatus = 0;
+    virtual auto resign() && -> std::unique_ptr<ReplicatedStateCore> = 0;
   };
 
  private:

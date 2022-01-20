@@ -28,6 +28,7 @@
 namespace arangodb::replication2::replicated_state {
 template<typename S>
 void LeaderStateManager<S>::run() {
+  TRI_ASSERT(core != nullptr);
   // 1. wait for leadership established
   // 1.2. digest available entries into multiplexer
   // 2. construct leader state
@@ -161,4 +162,12 @@ template<typename S>
 auto LeaderStateManager<S>::getSnapshotStatus() const -> SnapshotStatus {
   return core->snapshot;
 }
+
+template<typename S>
+auto LeaderStateManager<S>::resign() && -> std::unique_ptr<
+    ReplicatedStateCore> {
+  LOG_DEVEL << ADB_HERE << " resigning leader";
+  return std::move(core);
+}
+
 }  // namespace arangodb::replication2::replicated_state

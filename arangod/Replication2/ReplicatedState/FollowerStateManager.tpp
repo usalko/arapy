@@ -89,18 +89,21 @@ void FollowerStateManager<S>::pollNewEntries() {
         try {
           self->applyEntries(std::move(result).get());
         } catch (replicated_log::ParticipantResignedException const&) {
-          if (auto ptr = self->parent.lock(); ptr) {
-            ptr->flush(std::move(self->core));
-          } else {
-            LOG_TOPIC("15cb4", DEBUG, Logger::REPLICATED_STATE)
-                << "LogFollower resigned, but Replicated State already gone";
-          }
+          self->updateInternalState(
+              FollowerInternalState::kParticipantResigned);
         } catch (basics::Exception const& e) {
           LOG_TOPIC("f2188", FATAL, Logger::REPLICATED_STATE)
               << "waiting for leader ack failed with unexpected exception: "
               << e.message();
         }
       });
+}
+
+template<typename S>
+auto FollowerStateManager<S>::resign() && -> std::unique_ptr<
+    ReplicatedStateCore> {
+  LOG_DEVEL << ADB_HERE << " resigning follower";
+  return std::move(core);
 }
 
 template<typename S>
@@ -193,13 +196,8 @@ void FollowerStateManager<S>::awaitLeaderShip() {
                 << "leadership acknowledged - ingesting log data";
             self->ingestLogData();
           } catch (replicated_log::ParticipantResignedException const&) {
-            if (auto ptr = self->parent.lock(); ptr) {
-              ptr->flush(std::move(self->core));
-            } else {
-              LOG_TOPIC("15cb4", DEBUG, Logger::REPLICATED_STATE)
-                  << "LogFollower resigned, but Replicated State already "
-                     "gone";
-            }
+            self->updateInternalState(
+                FollowerInternalState::kParticipantResigned);
           } catch (basics::Exception const& e) {
             LOG_TOPIC("f2188", FATAL, Logger::REPLICATED_STATE)
                 << "waiting for leader ack failed with unexpected exception: "
@@ -221,6 +219,7 @@ void FollowerStateManager<S>::awaitLeaderShip() {
 
 template<typename S>
 void FollowerStateManager<S>::run() {
+  TRI_ASSERT(core != nullptr);
   // 1. wait for log follower to have committed at least one entry
   // 2. receive a new snapshot (if required)
   //    if (old_generation != new_generation || snapshot_status != Completed)

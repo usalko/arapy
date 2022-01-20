@@ -51,6 +51,8 @@ struct LeaderStateManager
   auto getStatus() const -> StateStatus final;
   auto getSnapshotStatus() const -> SnapshotStatus final;
 
+  auto resign() && -> std::unique_ptr<ReplicatedStateCore> override;
+
   void run();
 
   using Multiplexer = streams::LogMultiplexer<ReplicatedStateStreamSpec<S>>;
