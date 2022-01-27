@@ -95,6 +95,9 @@ TEST_F(ReplicatedStateTest, recreate_follower_on_new_term) {
   // recreate follower
   follower = log->becomeFollower("follower", LogTerm{2}, "leader");
 
+  // TODO Should this stay here?
+  state->flush();
+
   // create a leader in term 2
   leader = leaderLog->becomeLeader(LogConfig(2, 2, 2, false), "leader",
                                    LogTerm{2}, {follower});

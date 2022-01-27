@@ -51,6 +51,8 @@ inline constexpr std::string_view StringApplyRecentEntries =
     "ApplyRecentEntries";
 inline constexpr std::string_view StringUninitializedState =
     "UninitializedState";
+inline constexpr std::string_view StringParticipantResignedState =
+    "ParticipantResigned";
 
 inline constexpr auto StringRole = velocypack::StringRef{"role"};
 inline constexpr auto StringDetail = velocypack::StringRef{"detail"};
@@ -126,6 +128,8 @@ auto replicated_state::to_string(FollowerInternalState state) noexcept
       return StringApplyRecentEntries;
     case FollowerInternalState::kUninitializedState:
       return StringUninitializedState;
+    case FollowerInternalState::kParticipantResigned:
+      return StringParticipantResignedState;
   }
   TRI_ASSERT(false) << "invalid state value " << int(state);
   return "(unknown-internal-follower-state)";

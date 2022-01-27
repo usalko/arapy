@@ -102,7 +102,6 @@ void FollowerStateManager<S>::pollNewEntries() {
 template<typename S>
 auto FollowerStateManager<S>::resign() && -> std::unique_ptr<
     ReplicatedStateCore> {
-  LOG_DEVEL << ADB_HERE << " resigning follower";
   return std::move(core);
 }
 
@@ -195,7 +194,9 @@ void FollowerStateManager<S>::awaitLeaderShip() {
             LOG_TOPIC("53ba1", TRACE, Logger::REPLICATED_STATE)
                 << "leadership acknowledged - ingesting log data";
             self->ingestLogData();
-          } catch (replicated_log::ParticipantResignedException const&) {
+          } catch (replicated_log::ParticipantResignedException const& e) {
+            LOG_TOPIC("7a439", TRACE, Logger::REPLICATED_STATE)
+                << "Follower log resigned: " << e.message();
             self->updateInternalState(
                 FollowerInternalState::kParticipantResigned);
           } catch (basics::Exception const& e) {
