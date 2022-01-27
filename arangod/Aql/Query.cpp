@@ -32,6 +32,7 @@
 #include "Aql/ExecutionBlock.h"
 #include "Aql/ExecutionEngine.h"
 #include "Aql/ExecutionPlan.h"
+#include "Aql/GraphNode.h"
 #include "Aql/Optimizer.h"
 #include "Aql/Parser.h"
 #include "Aql/PlanCache.h"
@@ -303,9 +304,11 @@ void Query::prepareQuery(SerializationFormat format) {
         _queryOptions.profile >= ProfileLevel::Blocks &&
         ServerState::isSingleServerOrCoordinator(_trx->state()->serverRole());
     if (keepPlan) {
+      unsigned flags =
+          ExecutionPlan::buildSerializationFlags(false, false, false);
       _planSliceCopy = std::make_unique<VPackBufferUInt8>();
       VPackBuilder b(*_planSliceCopy);
-      plan->toVelocyPack(b, _ast.get(), false, ExplainRegisterPlan::No);
+      plan->toVelocyPack(b, _ast.get(), flags);
     }
 
     // simon: assumption is _queryString is empty for DBServer snippets
@@ -404,6 +407,9 @@ std::unique_ptr<ExecutionPlan> Query::preparePlan() {
   enterState(QueryExecutionState::ValueType::PLAN_INSTANTIATION);
 
   auto plan = ExecutionPlan::instantiateFromAst(_ast.get(), true);
+
+  TRI_ASSERT(plan != nullptr);
+  injectVertexCollectionIntoGraphNodes(*plan);
 
   // Run the query optimizer:
   enterState(QueryExecutionState::ValueType::PLAN_OPTIMIZATION);
@@ -953,6 +959,9 @@ QueryResult Query::explain() {
     std::unique_ptr<ExecutionPlan> plan =
         ExecutionPlan::instantiateFromAst(parser.ast(), true);
 
+    TRI_ASSERT(plan != nullptr);
+    injectVertexCollectionIntoGraphNodes(*plan);
+
     // Run the query optimizer:
     enterState(QueryExecutionState::ValueType::PLAN_OPTIMIZATION);
     arangodb::aql::Optimizer opt(_queryOptions.maxNumberOfPlans);
@@ -969,6 +978,11 @@ QueryResult Query::explain() {
           plan->prepareTraversalOptions();
         };
 
+    // build serialization flags for execution plan
+    unsigned flags = ExecutionPlan::buildSerializationFlags(
+        _queryOptions.verbosePlans, _queryOptions.explainInternals,
+        _queryOptions.explainRegisters == ExplainRegisterPlan::Yes);
+
     if (_queryOptions.allPlans) {
       result.data = std::make_shared<VPackBuilder>();
       {
@@ -980,9 +994,7 @@ QueryResult Query::explain() {
           TRI_ASSERT(pln != nullptr);
 
           preparePlanForSerialization(pln);
-          pln->toVelocyPack(*result.data.get(), parser.ast(),
-                            _queryOptions.verbosePlans,
-                            _queryOptions.explainRegisters);
+          pln->toVelocyPack(*result.data.get(), parser.ast(), flags);
         }
       }
       // cacheability not available here
@@ -994,9 +1006,7 @@ QueryResult Query::explain() {
       TRI_ASSERT(bestPlan != nullptr);
 
       preparePlanForSerialization(bestPlan);
-      result.data =
-          bestPlan->toVelocyPack(parser.ast(), _queryOptions.verbosePlans,
-                                 _queryOptions.explainRegisters);
+      result.data = bestPlan->toVelocyPack(parser.ast(), flags);
 
       // cacheability
       result.cached = (!_queryString.empty() && !isModificationQuery() &&
@@ -1582,6 +1592,40 @@ aql::ExecutionState Query::cleanupTrxAndEngines(ErrorCode errorCode) {
       }
     }
     return ExecutionState::DONE;
+  }
+}
+
+void Query::injectVertexCollectionIntoGraphNodes(ExecutionPlan& plan) {
+  ::arangodb::containers::SmallVectorWithArena<ExecutionNode*>
+      graphNodesStorage;
+  auto& graphNodes = graphNodesStorage.vector();
+
+  plan.findNodesOfType(graphNodes,
+                       {ExecutionNode::TRAVERSAL, ExecutionNode::SHORTEST_PATH,
+                        ExecutionNode::K_SHORTEST_PATHS},
+                       true);
+  for (auto& node : graphNodes) {
+    auto graphNode = ExecutionNode::castTo<GraphNode*>(node);
+    auto const& vCols = graphNode->vertexColls();
+
+    if (vCols.empty()) {
+      auto& myResolver = resolver();
+
+      // In case our graphNode does not have any collections added yet,
+      // we need to visit all query-known collections and add the
+      // vertex collections.
+      collections().visit(
+          [&myResolver, graphNode](std::string const& name,
+                                   aql::Collection& collection) {
+            // If resolver cannot resolve this collection
+            // it has to be a view.
+            if (myResolver.getCollection(name)) {
+              // All known edge collections will be ignored by this call!
+              graphNode->injectVertexCollection(collection);
+            }
+            return true;
+          });
+    }
   }
 }
 
