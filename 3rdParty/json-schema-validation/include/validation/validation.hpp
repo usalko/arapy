@@ -1,34 +1,51 @@
-#ifndef ARANGO_SCHEMA_VALIADTION_VALIDATION_HEADER
-#define ARANGO_SCHEMA_VALIADTION_VALIDATION_HEADER 1
-
-
+////////////////////////////////////////////////////////////////////////////////
+/// DISCLAIMER
+///
+/// Copyright 2014-2021 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2004-2014 triAGENS GmbH, Cologne, Germany
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
+///
+/// Copyright holder is ArangoDB GmbH, Cologne, Germany
+///
+/// @author Lars Maier
+/// @author Copyright 2017-2018, ArangoDB GmbH, Cologne, Germany
+////////////////////////////////////////////////////////////////////////////////
+#pragma once
 #include <memory>
-#include <velocypack/Builder.h>
-#include <velocypack/Slice.h>
-#include <velocypack/velocypack-aliases.h>
+#include <optional>
+#include <string>
+#include <vector>
 
-#include "types.hpp"
-#include <tao/json/from_file.hpp>
-
-namespace tao::json {
-template<template<typename...> class Traits>
-class basic_schema;
-}
+namespace arangodb::velocypack {
+class Slice;
+struct Options;
+}  // namespace arangodb::velocypack
 
 namespace arangodb::validation {
-[[nodiscard]] bool validate(tao::json::basic_schema<tao::json::traits> const& schema,
-                            SpecialProperties special,
-                            VPackSlice const doc,
-                            VPackOptions const*);
 
+struct JsonSchema;
 
-[[nodiscard]] tao::json::value slice_to_value(VPackSlice const& doc,
-                                              SpecialProperties special = SpecialProperties::None,
-                                              VPackOptions const* options = &VPackOptions::Defaults,
-                                              VPackSlice const* = nullptr);
+struct ValidationError {
+  std::vector<std::string> path;
+  std::string message;
+};
 
-[[nodiscard]] tao::json::basic_schema<tao::json::traits>* new_schema(VPackSlice const& schema);
+[[nodiscard]] std::optional<ValidationError> validate(
+    JsonSchema const& schema, velocypack::Slice doc,
+    velocypack::Options const* opts);
 
-} // namespace arangodb::validation
+[[nodiscard]] std::shared_ptr<JsonSchema const> new_schema(
+    velocypack::Slice schema);
 
-#endif
+}  // namespace arangodb::validation

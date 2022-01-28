@@ -30,12 +30,10 @@
 #include <velocypack/velocypack-aliases.h>
 #include <string>
 
-#include <tao/json/forward.hpp>
 #include <validation/types.hpp>
 
-namespace tao::json {
-template<template<typename...> class Traits>
-class basic_schema;
+namespace arangodb::validation {
+struct JsonSchema;
 }
 
 namespace arangodb {
@@ -67,7 +65,6 @@ struct ValidatorBase {
   void toVelocyPack(VPackBuilder&) const;
   virtual char const* type() const = 0;
   std::string const& message() const { return this->_message; }
-  std::string const& specialProperties() const;
   void setLevel(ValidationLevel level) noexcept { _level = level; }
   ValidationLevel level() { return _level; }
 
@@ -76,7 +73,6 @@ struct ValidatorBase {
 
   std::string _message;
   ValidationLevel _level;
-  validation::SpecialProperties _special;
 };
 
 struct ValidatorJsonSchema : public ValidatorBase {
@@ -86,7 +82,7 @@ struct ValidatorJsonSchema : public ValidatorBase {
   char const* type() const override;
 
  private:
-  std::shared_ptr<tao::json::basic_schema<tao::json::traits>> _schema;
+  std::shared_ptr<validation::JsonSchema const> _schema;
   VPackBuilder _builder;
 };
 

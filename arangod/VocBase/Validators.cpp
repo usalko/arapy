@@ -26,12 +26,7 @@
 #include <Basics/StaticStrings.h>
 #include <Logger/LogMacros.h>
 
-#include <tao/json/contrib/schema.hpp>
-#include <tao/json/jaxn/to_string.hpp>
 #include <validation/validation.hpp>
-
-#include <iostream>
-#include <tao/json/to_string.hpp>
 
 namespace arangodb {
 
@@ -53,9 +48,7 @@ std::string const& to_string(ValidationLevel level) {
 
 //////////////////////////////////////////////////////////////////////////////
 
-ValidatorBase::ValidatorBase()
-    : _level(ValidationLevel::Strict),
-      _special(validation::SpecialProperties::None) {}
+ValidatorBase::ValidatorBase() : _level(ValidationLevel::Strict) {}
 
 ValidatorBase::ValidatorBase(VPackSlice params) : ValidatorBase() {
   // parse message
@@ -145,6 +138,7 @@ void ValidatorBase::toVelocyPack(VPackBuilder& b) const {
 ValidatorBool::ValidatorBool(VPackSlice params) : ValidatorBase(params) {
   _result = params.get(StaticStrings::ValidationParameterRule).getBool();
 }
+
 Result ValidatorBool::validateOne(VPackSlice slice,
                                   VPackOptions const* options) const {
   if (_result) {
@@ -169,12 +163,11 @@ ValidatorJsonSchema::ValidatorJsonSchema(VPackSlice params)
     msg += params.toJson();
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_VALIDATION_BAD_PARAMETER, msg);
   }
-  auto taoRuleValue = validation::slice_to_value(rule);
   try {
-    _schema = std::make_shared<tao::json::schema>(taoRuleValue);
+    _schema = validation::new_schema(rule);
     _builder.add(rule);
   } catch (std::exception const& ex) {
-    auto valueString = tao::json::to_string(taoRuleValue, 4);
+    auto valueString = rule.toJson();
     auto msg =
         std::string("invalid object") + valueString + "exception: " + ex.what();
     LOG_TOPIC("baabe", ERR, Logger::VALIDATION) << msg;
@@ -184,11 +177,19 @@ ValidatorJsonSchema::ValidatorJsonSchema(VPackSlice params)
 
 Result ValidatorJsonSchema::validateOne(VPackSlice slice,
                                         VPackOptions const* options) const {
-  auto res = validation::validate(*_schema, _special, slice, options);
+  auto res = validation::validate(*_schema, slice, options);
   if (res) {
     return {};
   }
-  return {TRI_ERROR_VALIDATION_FAILED, _message};
+
+  auto const buildErrorMessage = [](validation::ValidationError const& error,
+                                    std::string_view message) {
+    auto const path = basics::StringUtils::join(error.path, '/');
+    return basics::StringUtils::concatT(message, " - error at ", path, ": ",
+                                        error.message);
+  };
+
+  return {TRI_ERROR_VALIDATION_FAILED, buildErrorMessage(*res, _message)};
 }
 void ValidatorJsonSchema::toVelocyPackDerived(VPackBuilder& b) const {
   TRI_ASSERT(!_builder.slice().isNone());
