@@ -166,7 +166,6 @@ auto LeaderStateManager<S>::getSnapshotStatus() const -> SnapshotStatus {
 template<typename S>
 auto LeaderStateManager<S>::resign() && -> std::unique_ptr<
     ReplicatedStateCore> {
-  LOG_DEVEL << ADB_HERE << " resigning leader";
   return std::move(core);
 }
 
