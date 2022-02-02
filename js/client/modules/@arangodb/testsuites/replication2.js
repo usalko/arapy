@@ -58,7 +58,7 @@ function replication2Server(options) {
   const testCases = tu.scanTestPaths(testPaths.replication2_server, options);
 
   const opts = _.clone(options);
-  opts.dbServers = Math.max(opts.dbServers, 5);
+  opts.dbServers = Math.max(opts.dbServers, 6);
 
   return tu.performTests(opts, testCases, 'replication2_server', tu.runThere, {
         'javascript.allow-external-process-control': 'true',

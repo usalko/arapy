@@ -170,6 +170,15 @@ const replicatedLogDeleteTarget = function (database, logId) {
   global.ArangoAgency.increaseVersion(`Target/Version`);
 };
 
+const updateReplicatedLogTarget = function(database, id, callback) {
+  const {target: oldTarget} = readReplicatedLogAgency(database, id);
+  let result = callback(oldTarget);
+  if (result === undefined) {
+    result = oldTarget;
+  }
+  replicatedLogSetTarget(database, id, result);
+};
+
 const replicatedLogIsReady = function (database, logId, term, participants, leader) {
   return function () {
     let {current} = readReplicatedLogAgency(database, logId);
@@ -414,3 +423,4 @@ exports.getLocalStatus = getLocalStatus;
 exports.replicatedLogUpdateTargetParticipants = replicatedLogUpdateTargetParticipants;
 exports.replicatedLogLeaderEstablished = replicatedLogLeaderEstablished;
 exports.replicatedLogParticipantsFlag = replicatedLogParticipantsFlag;
+exports.updateReplicatedLogTarget = updateReplicatedLogTarget;
