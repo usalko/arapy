@@ -43,7 +43,8 @@ auto checkStateAdded(replication2::replicated_state::agency::State const& state)
     auto statePlan = replication2::replicated_state::agency::Plan{
         .id = state.target.id,
         .generation = StateGeneration{1},
-        .properties = state.target.properties};
+        .properties = state.target.properties,
+        .participants = {}};
 
     auto logTarget =
         replication2::agency::LogTarget(id, participants, state.target.config);

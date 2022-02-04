@@ -245,7 +245,7 @@ const miscReplicatedLogSuite = function () {
         [newFollower]: {excluded: false, forced: false},
         [followers[1]]: {excluded: false, forced: false},
       }));
-      LH.waitFor(LH.replicatedLogIsReady(database, logId, term, [newLeader, newFollower, followers[1]], newLeader));
+      LH.waitFor(LH.replicatedLogIsReady(database, logId, term + 1, [newLeader, newFollower, followers[1]], newLeader));
 
       const actions = getSupervisionActionTypes(database, logId);
       const actionsRequired = actions.length - initialNumberOfActions;
@@ -255,7 +255,49 @@ const miscReplicatedLogSuite = function () {
         "RemoveParticipantFromPlan": 2, // we removed two participants
         "AddParticipantToPlanAction": 2, // and added two other participants
         "DictateLeaderAction": 1, // single dictate leader - add newLeader, remove oldFollower, Failover to newLeader, add newFollower, remove leader
-        "UpdateParticipantFlags": 2 // each dictate leader ship comes with two UpdateParticipantFlags action
+        "UpdateParticipantFlags": 2 // each dictate leadership comes with two UpdateParticipantFlags action
+      };
+      assertEqual(counts, expected);
+
+      LH.replicatedLogDeleteTarget(database, logId);
+    },
+
+    testReplaceAllServers: function () {
+      const {servers, leader, followers, logId, term} = createReplicatedLogAndWaitForLeader(database);
+
+      const initialNumberOfActions = getSupervisionActionTypes(database, logId).length;
+
+      const otherServer = _.difference(LH.dbservers, servers);
+      const [newLeader, ...newFollowers] = _.sampleSize(otherServer, 2);
+      LH.updateReplicatedLogTarget(database, logId, function (target) {
+        delete target.participants[followers[0]];
+        delete target.participants[followers[1]];
+        delete target.participants[leader];
+        target.participants[newLeader] = {};
+        target.participants[newFollowers[0]] = {};
+        target.participants[newFollowers[1]] = {};
+        target.leader = newLeader;
+      });
+
+      LH.waitFor(LH.replicatedLogParticipantsFlag(database, logId, {
+        [followers[0]]: null,
+        [followers[1]]: null,
+        [leader]: null,
+        [newLeader]: {excluded: false, forced: false},
+        [newFollowers[0]]: {excluded: false, forced: false},
+        [newFollowers[1]]: {excluded: false, forced: false},
+      }));
+      LH.waitFor(LH.replicatedLogIsReady(database, logId, term + 1, otherServer, newLeader));
+
+      const actions = getSupervisionActionTypes(database, logId);
+      const actionsRequired = actions.length - initialNumberOfActions;
+      const last = _.takeRight(actions, actionsRequired);
+      const counts = countActionsByType(last);
+      const expected = {
+        "RemoveParticipantFromPlan": 3, // we removed two participants
+        "AddParticipantToPlanAction": 3, // and added two other participants
+        "DictateLeaderAction": 1, // single dictate leader - add newLeader, remove oldFollower, Failover to newLeader, add newFollower, remove leader
+        "UpdateParticipantFlags": 2 // each dictate leadership comes with two UpdateParticipantFlags action
       };
       assertEqual(counts, expected);
 
