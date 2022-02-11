@@ -22,40 +22,40 @@
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#include "Metrics/Metric.h"
+#include "Containers/NodeHashMap.h"
+#include "Metrics/IBatch.h"
 
-#include <mutex>
+#include <vector>
 
 namespace arangodb::metrics {
 
 template<typename T>
-class Batch final : public Metric {
+class Batch final : public IBatch {
  public:
-  Batch(T&& metric, std::string_view name, std::string_view help,
-        std::string_view labels)
-      : Metric{name, help, labels}, _metric{std::move(metric)} {}
-
-  [[nodiscard]] std::string_view type() const noexcept final {
-    return "untyped";
+  void toPrometheus(std::string& result, std::string_view globals) const final {
+    std::vector<typename T::Data> metrics;
+    metrics.reserve(_metrics.size());
+    for (auto& [_, metric] : _metrics) {
+      metrics.push_back(metric.load());  // synchronization here
+    }
+    for (size_t i = 0; i != T::size(); ++i) {
+      for (size_t j = 0; auto& [labels, _] : _metrics) {
+        T::toPrometheus(metrics[j], j == 0, i, result, globals, labels);
+        ++j;
+      }
+    }
   }
-  void toPrometheus(std::string& result, bool first,
-                    std::string_view globals) const final {
-    load().toPrometheus(result, first, globals, labels());
-  }
 
-  void store(T&& metric) {
-    std::lock_guard guard{_m};
-    _metric = std::move(metric);
+  T& add(std::string labels) {  //
+    return _metrics[std::move(labels)];
+  }
+  size_t remove(std::string_view labels) final {
+    auto const size = _metrics.size();
+    return size - _metrics.erase(labels);
   }
 
  private:
-  T load() const {
-    std::lock_guard guard{_m};
-    return _metric;
-  }
-
-  mutable std::mutex _m;
-  T _metric;
+  containers::NodeHashMap<std::string, T> _metrics;
 };
 
 }  // namespace arangodb::metrics

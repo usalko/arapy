@@ -18,29 +18,23 @@
 ///
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
-/// @author Kaveh Vahedipour
+/// @author Valery Mironov
 ////////////////////////////////////////////////////////////////////////////////
+#pragma once
 
-#include "Metrics/Builder.h"
-
-#include "Metrics/IBatch.h"
+#include <string>
+#include <string_view>
 
 namespace arangodb::metrics {
 
-std::string_view Builder::name() const noexcept { return _name; }
-std::string_view Builder::labels() const noexcept { return _labels; }
+class IBatch {
+ public:
+  virtual void toPrometheus(std::string& result,
+                            std::string_view globals) const = 0;
 
-void Builder::addLabel(std::string_view key, std::string_view value) {
-  if (!_labels.empty()) {
-    _labels.push_back(',');
-  }
-  _labels.append(key);
-  _labels.push_back('=');
-  _labels.push_back('"');
-  _labels.append(value);
-  _labels.push_back('"');
-}
+  virtual size_t remove(std::string_view labels) = 0;
 
-IBatch::~IBatch() = default;
+  virtual ~IBatch();
+};
 
 }  // namespace arangodb::metrics

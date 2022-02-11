@@ -18,29 +18,18 @@
 ///
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
-/// @author Kaveh Vahedipour
+/// @author Valery Mironov
 ////////////////////////////////////////////////////////////////////////////////
+#pragma once
 
-#include "Metrics/Builder.h"
+#include <absl/container/node_hash_map.h>
 
-#include "Metrics/IBatch.h"
+namespace arangodb::containers {
 
-namespace arangodb::metrics {
+template<class K, class V,
+         class Hash = iresearch_absl::container_internal::hash_default_hash<K>,
+         class Eq = iresearch_absl::container_internal::hash_default_eq<K>,
+         class Allocator = std::allocator<std::pair<const K, V>>>
+using NodeHashMap = iresearch_absl::node_hash_map<K, V, Hash, Eq, Allocator>;
 
-std::string_view Builder::name() const noexcept { return _name; }
-std::string_view Builder::labels() const noexcept { return _labels; }
-
-void Builder::addLabel(std::string_view key, std::string_view value) {
-  if (!_labels.empty()) {
-    _labels.push_back(',');
-  }
-  _labels.append(key);
-  _labels.push_back('=');
-  _labels.push_back('"');
-  _labels.append(value);
-  _labels.push_back('"');
-}
-
-IBatch::~IBatch() = default;
-
-}  // namespace arangodb::metrics
+}  // namespace arangodb::containers

@@ -18,29 +18,36 @@
 ///
 /// Copyright holder is ArangoDB GmbH, Cologne, Germany
 ///
-/// @author Kaveh Vahedipour
+/// @author Valery Mironov
 ////////////////////////////////////////////////////////////////////////////////
+#pragma once
 
-#include "Metrics/Builder.h"
-
-#include "Metrics/IBatch.h"
+#include <mutex>
 
 namespace arangodb::metrics {
 
-std::string_view Builder::name() const noexcept { return _name; }
-std::string_view Builder::labels() const noexcept { return _labels; }
+template<typename T>
+class Guard {
+ public:
+  using Data = T;
 
-void Builder::addLabel(std::string_view key, std::string_view value) {
-  if (!_labels.empty()) {
-    _labels.push_back(',');
+  T load() const {
+    std::unique_lock lock{_m};
+    return _data;
   }
-  _labels.append(key);
-  _labels.push_back('=');
-  _labels.push_back('"');
-  _labels.append(value);
-  _labels.push_back('"');
-}
 
-IBatch::~IBatch() = default;
+  void store(T&& data) {
+    std::unique_lock lock{_m};
+    _data = std::move(data);
+  }
+  void store(T const& data) {
+    std::unique_lock lock{_m};
+    _data = data;
+  }
+
+ private:
+  mutable std::mutex _m;
+  T _data;
+};
 
 }  // namespace arangodb::metrics

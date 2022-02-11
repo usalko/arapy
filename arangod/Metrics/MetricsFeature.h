@@ -24,10 +24,12 @@
 
 #include "Metrics/Builder.h"
 #include "Metrics/Metric.h"
+#include "Metrics/IBatch.h"
 #include "Metrics/MetricKey.h"
 #include "ProgramOptions/ProgramOptions.h"
 #include "RestServer/arangod.h"
 #include "Statistics/ServerStatistics.h"
+#include "Containers/FlatHashMap.h"
 
 #include <map>
 #include <shared_mutex>
@@ -62,20 +64,29 @@ class MetricsFeature final : public ArangodFeature {
 
   ServerStatistics& serverStatistics() noexcept;
 
+  struct Proxy {
+    std::unique_lock<std::shared_mutex> _lock;
+    std::unique_ptr<IBatch>& _value;
+  };
+  Proxy addBatch(std::string_view name);
+  void removeFromBatch(std::string_view name, std::string_view labels);
+
  private:
   std::shared_ptr<Metric> doAdd(Builder& builder);
-  void initGlobalLabels() const;
+  std::shared_lock<std::shared_mutex> initGlobalLabels() const;
+
+  mutable std::shared_mutex _mutex;
 
   // TODO(MBkkt) abseil btree map? or hashmap<name, hashmap<labels, Metric>>?
   std::map<MetricKey, std::shared_ptr<Metric>> _registry;
 
-  mutable bool hasShortname = false;
-  mutable bool hasRole = false;
-  mutable std::string _globals;
-
-  mutable std::shared_mutex _mutex;
+  containers::FlatHashMap<std::string_view, std::unique_ptr<IBatch>> _batch;
 
   std::unique_ptr<ServerStatistics> _serverStatistics;
+
+  mutable std::string _globals;
+  mutable bool hasShortname = false;
+  mutable bool hasRole = false;
 
   bool _export;
   bool _exportReadWriteMetrics;

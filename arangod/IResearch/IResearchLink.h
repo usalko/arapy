@@ -35,12 +35,21 @@
 #include "IResearch/IResearchViewMeta.h"
 #include "Indexes/Index.h"
 #include "Metrics/Fwd.h"
+#include "Metrics/Guard.h"
 #include "RestServer/DatabasePathFeature.h"
 #include "Transaction/Status.h"
 #include "Utils/OperationOptions.h"
 #include "VocBase/Identifiers/IndexId.h"
 
 namespace arangodb::iresearch {
+
+struct MetricStats : public metrics::Guard<IResearchDataStore::Stats> {
+  static constexpr size_t size() noexcept { return 5; }
+
+  static void toPrometheus(IResearchDataStore::Stats const& data, bool first,
+                           size_t index, std::string& result,
+                           std::string_view globals, std::string_view labels);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief common base class for functionality required to link an ArangoDB
@@ -166,19 +175,6 @@ class IResearchLink : public IResearchDataStore {
   std::string const& getShardName() const noexcept;
   std::string getCollectionName() const;
 
-  // TODO: Generalize for Link/Index
-  struct LinkStats : Stats {
-    LinkStats() = default;
-    explicit LinkStats(Stats const& storeStats) : Stats(storeStats) {}
-    void toPrometheus(std::string& result, bool first, std::string_view globals,
-                      std::string_view labels) const;
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////
-  /// @brief get index stats for current snapshot
-  ////////////////////////////////////////////////////////////////////////////////
-  LinkStats stats() const;
-
  protected:
   ////////////////////////////////////////////////////////////////////////////////
   /// @brief construct an uninitialized IResearch link, must call init(...)
@@ -186,10 +182,9 @@ class IResearchLink : public IResearchDataStore {
   ////////////////////////////////////////////////////////////////////////////////
   IResearchLink(IndexId iid, LogicalCollection& collection);
 
-  void updateStats(Stats const& stats) override;
+  void insertMetrics() final;
+  void removeMetrics() final;
 
-  void insertStats() override;
-  void removeStats() override;
   void invalidateQueryCache(TRI_vocbase_t* vocbase) override;
 
  private:
@@ -202,7 +197,6 @@ class IResearchLink : public IResearchDataStore {
   Result initCoordinator(InitCallback const& init);
   Result initDBServer(InitCallback const& init);
 
-  metrics::Batch<LinkStats>* _linkStats;
   IResearchLinkMeta _meta;
   // the identifier of the desired view (read-only, set via init())
   std::string _viewGuid;

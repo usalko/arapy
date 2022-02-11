@@ -2190,7 +2190,8 @@ void getStatsFromFolder(std::string_view path, uint64_t& indexSize,
   iresearch::file_utils::visit_directory(utf8Path.c_str(), visitor, false);
 }
 
-using LinkStats = arangodb::iresearch::IResearchLink::LinkStats;
+using LinkStats = arangodb::iresearch::IResearchDataStore::Stats;
+using arangodb::iresearch::MetricStats;
 
 bool operator==(const LinkStats& lhs, const LinkStats& rhs) noexcept {
   return lhs.numDocs == rhs.numDocs && lhs.numLiveDocs == rhs.numLiveDocs &&
@@ -2234,9 +2235,8 @@ class IResearchLinkMetricsTest : public IResearchLinkTest {
 
   bool checkMetricExist(std::string_view name, std::string_view label) const {
     arangodb::metrics::MetricKey key(name, label);
-    auto* metric =
-        _vocbase.server().getFeature<arangodb::metrics::MetricsFeature>().get(
-            key);
+    auto& f = _vocbase.server().getFeature<arangodb::metrics::MetricsFeature>();
+    auto* metric = f.get(key);
     return metric != nullptr;
   }
 
@@ -2275,7 +2275,6 @@ class IResearchLinkMetricsTest : public IResearchLinkTest {
     EXPECT_TRUE(created);
     EXPECT_NE(_link, nullptr);
     auto label = getLinkMetricLabel();
-    EXPECT_TRUE(checkMetricExist("arangosearch_link_stats", label));
     EXPECT_TRUE(checkMetricExist("arangodb_search_num_failed_commits", label));
     EXPECT_TRUE(checkMetricExist("arangodb_search_num_failed_cleanups", label));
     EXPECT_TRUE(
@@ -2302,21 +2301,19 @@ class IResearchLinkMetricsTest : public IResearchLinkTest {
   std::string getLinkMetricLabel() {
     auto* l = getLink();
     std::string label;
+    label += "db=\"" + l->getDbName() + "\",";
     label += "view=\"" + l->getViewId() + "\",";
     label += "collection=\"" + l->getCollectionName() + "\",";
-    label += "shard=\"" + l->getShardName() + "\",";
-    label += "db=\"" + l->getDbName() + "\"";
+    label += "shard=\"" + l->getShardName() + "\"";
     return label;
   }
 
   void getPrometheusStr(std::string& result) {
-    auto label = getLinkMetricLabel();
-    arangodb::metrics::MetricKey key("arangosearch_link_stats", label);
-    auto* metric =
-        _vocbase.server().getFeature<arangodb::metrics::MetricsFeature>().get(
-            key);
-    if (metric != nullptr) {
-      metric->toPrometheus(result, false, "");
+    auto* l = getLink();
+    auto labels = getLinkMetricLabel();
+    auto const actualStats = l->stats();
+    for (size_t i = 0; i != MetricStats::size(); ++i) {
+      MetricStats::toPrometheus(actualStats, false, i, result, "", labels);
     }
   }
 
@@ -2468,7 +2465,6 @@ TEST_F(IResearchLinkMetricsTest, RemoveMetrics) {
   setLink();
   auto label = getLinkMetricLabel();
   resetLink();
-  EXPECT_FALSE(checkMetricExist("arangosearch_link_stats", label));
   EXPECT_FALSE(checkMetricExist("arangodb_search_num_failed_commits", label));
   EXPECT_FALSE(checkMetricExist("arangodb_search_num_failed_cleanups", label));
   EXPECT_FALSE(
@@ -2500,9 +2496,13 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics1) {
     ++expectedStat.numLiveDocs;
   }
   {
-    LinkStats actualStat = l->stats();
     std::string realStr;
-    l->stats().toPrometheus(realStr, false, "", "");
+
+    auto const actualStats = l->stats();
+    for (size_t i = 0; i != MetricStats::size(); ++i) {
+      MetricStats::toPrometheus(actualStats, false, i, realStr, "", "");
+    }
+
     std::string expectedStr;
     expectedStr.reserve(1024);
 
@@ -2520,7 +2520,7 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics1) {
     // should increase numFiles in expected stat
     ++expectedStat.numFiles;
 
-    EXPECT_TRUE(expectedStat == actualStat);
+    EXPECT_TRUE(expectedStat == actualStats);
   }
   {
     auto numFailed = l->numFailed();
@@ -2566,7 +2566,12 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics2) {
   }
   {
     std::string realStr;
-    l->stats().toPrometheus(realStr, false, "", "");
+
+    auto const actualStats = l->stats();
+    for (size_t i = 0; i != MetricStats::size(); ++i) {
+      MetricStats::toPrometheus(actualStats, false, i, realStr, "", "");
+    }
+
     std::string expectedStr;
     expectedStr.reserve(1024);
 
@@ -2594,8 +2599,14 @@ TEST_F(IResearchLinkMetricsTest, WriteAndMetrics2) {
   }
   {
     std::string realStr;
-    l->stats().toPrometheus(realStr, false, "test",
-                            R"(view="foo",collection="bar","shard"="s0001")");
+
+    auto const actualStats = l->stats();
+    for (size_t i = 0; i != MetricStats::size(); ++i) {
+      MetricStats::toPrometheus(
+          actualStats, false, i, realStr, "test",
+          R"(view="foo",collection="bar","shard"="s0001")");
+    }
+
     std::string expectedStr;
     expectedStr +=
         "arangodb_search_num_docs{test,view=\"foo\","
@@ -2633,29 +2644,34 @@ TEST_F(IResearchLinkMetricsTest, LinkAndMetics) {
 
     std::string expected;
 
-    expected += R"(arangodb_search_num_docs{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_docs{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}1)";
+    expected += R"(",shard=""}1)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_live_docs{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_live_docs{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}1)";
+    expected += R"(",shard=""}1)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_segments{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_segments{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}1)";
+    expected += R"(",shard=""}1)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_files{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_files{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}6)";
+    expected += R"(",shard=""}6)";
     expected += "\n";
 
-    expected += R"(arangodb_search_index_size{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_index_size{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}681)";
+    expected += R"(",shard=""}681)";
     expected += "\n";
 
     std::string actual;
@@ -2672,29 +2688,34 @@ TEST_F(IResearchLinkMetricsTest, LinkAndMetics) {
 
     std::string expected;
 
-    expected += R"(arangodb_search_num_docs{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_docs{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}3)";
+    expected += R"(",shard=""}3)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_live_docs{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_live_docs{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}3)";
+    expected += R"(",shard=""}3)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_segments{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_segments{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}2)";
+    expected += R"(",shard=""}2)";
     expected += "\n";
 
-    expected += R"(arangodb_search_num_files{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_num_files{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}11)";
+    expected += R"(",shard=""}11)";
     expected += "\n";
 
-    expected += R"(arangodb_search_index_size{view="h3039/42",collection=")";
+    expected +=
+        R"(arangodb_search_index_size{db="testVocbase",view="h3039/42",collection=")";
     expected += collection;
-    expected += R"(",shard="",db="testVocbase"}1513)";
+    expected += R"(",shard=""}1513)";
     expected += "\n";
 
     std::string actual;
