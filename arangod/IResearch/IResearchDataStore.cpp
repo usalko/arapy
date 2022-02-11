@@ -1560,12 +1560,12 @@ bool IResearchDataStore::hasSelectivityEstimate() {
 }
 
 IResearchDataStore::Stats IResearchDataStore::stats() const {
-  if (_metricStats) {
-    return _metricStats->load();
-  }
   auto linkLock = _asyncSelf->lock();
   if (!linkLock) {
     return {};
+  }
+  if (_metricStats) {
+    return _metricStats->load();
   }
   return updateStatsUnsafe();
 }

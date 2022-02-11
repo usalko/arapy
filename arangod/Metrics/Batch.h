@@ -46,8 +46,8 @@ class Batch final : public IBatch {
     }
   }
 
-  T& add(std::string labels) {  //
-    return _metrics[std::move(labels)];
+  T& add(std::string_view labels) {  //
+    return _metrics[labels];
   }
   size_t remove(std::string_view labels) final {
     auto const size = _metrics.size();

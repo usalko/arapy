@@ -22,6 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include "Basics/DownCast.h"
+#include "Metrics/Batch.h"
 #include "Metrics/Builder.h"
 #include "Metrics/Metric.h"
 #include "Metrics/IBatch.h"
@@ -64,12 +66,17 @@ class MetricsFeature final : public ArangodFeature {
 
   ServerStatistics& serverStatistics() noexcept;
 
-  struct Proxy {
-    std::unique_lock<std::shared_mutex> _lock;
-    std::unique_ptr<IBatch>& _value;
-  };
-  Proxy addBatch(std::string_view name);
-  void removeFromBatch(std::string_view name, std::string_view labels);
+  template<typename MetricType>
+  MetricType& batchAdd(std::string_view name, std::string_view labels) {
+    std::unique_lock lock{_mutex};
+    auto& iBatch = _batch[name];
+    if (!iBatch) {
+      iBatch = std::make_unique<metrics::Batch<MetricType>>();
+    }
+    return basics::downCast<metrics::Batch<MetricType>>(*iBatch).add(labels);
+  }
+
+  void batchRemove(std::string_view name, std::string_view labels);
 
  private:
   std::shared_ptr<Metric> doAdd(Builder& builder);

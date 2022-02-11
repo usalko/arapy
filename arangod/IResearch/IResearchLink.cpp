@@ -591,14 +591,7 @@ void IResearchLink::insertMetrics() {
       &metric.add(getMetric<arangodb_search_cleanup_time>(*this));
   _avgConsolidationTimeMs =
       &metric.add(getMetric<arangodb_search_consolidation_time>(*this));
-  {
-    auto [lock, iBatch] = metric.addBatch(kSearchStats);
-    if (!iBatch) {
-      iBatch = std::make_unique<metrics::Batch<MetricStats>>();
-    }
-    auto& batch = downCast<metrics::Batch<MetricStats>>(*iBatch);
-    _metricStats = &batch.add(getLabels(*this));
-  }
+  _metricStats = &metric.batchAdd<MetricStats>(kSearchStats, getLabels(*this));
 }
 
 void IResearchLink::removeMetrics() {
@@ -630,7 +623,7 @@ void IResearchLink::removeMetrics() {
   }
   if (_metricStats) {
     _metricStats = nullptr;
-    metric.removeFromBatch(kSearchStats, getLabels(*this));
+    metric.batchRemove(kSearchStats, getLabels(*this));
   }
 }
 

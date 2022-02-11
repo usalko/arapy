@@ -178,13 +178,8 @@ std::shared_lock<std::shared_mutex> MetricsFeature::initGlobalLabels() const {
   return sharedLock;
 }
 
-MetricsFeature::Proxy MetricsFeature::addBatch(std::string_view name) {
-  std::unique_lock lock{_mutex};
-  return {std::move(lock), _batch[name]};
-}
-
-void MetricsFeature::removeFromBatch(std::string_view name,
-                                     std::string_view labels) {
+void MetricsFeature::batchRemove(std::string_view name,
+                                 std::string_view labels) {
   std::unique_lock lock{_mutex};
   auto it = _batch.find(name);
   if (it == _batch.end()) {
