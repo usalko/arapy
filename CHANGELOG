@@ -1,5 +1,5 @@
-v3.10.0 (XXXX-XX-XX)
---------------------
+v3.10.0-alpha.1 (2022-08-08)
+----------------------------
 
 * Added support for AT LEAST quantifier for SEARCH.
 
